@@ -16,7 +16,7 @@ Wiring is documented in [wiring.md](wiring.md).
 |---|---|---|
 | Raspberry Pi 5 | 1 | **8 GB recommended** if you want the local fallback LLM; 4 GB is enough for local speech only |
 | Jabra Speak 410 (USB) | 1 | Speakerphone with echo cancellation. Sits on top of the enclosure. Its USB cable is fixed and fairly long; plan strain relief and where the extra length coils inside |
-| 30 mm arcade button with built-in LED | 1 | Momentary. **Check the LED voltage** (usually 5 V or 12 V) with a multimeter before wiring; it can't be driven directly from a 3.3 V GPIO pin. Usually has 2.8 mm spade terminals |
+| 30 mm arcade button with LED: [Adafruit #3491](https://www.adafruit.com/product/3491) (translucent clear), or the yellow LED version from the same family | 1 | 30 mm mounting hole, screw-in nut for panels up to ~20 mm thick. Micro-switch with a soft action (no strong click). **LED: 5 V, ~10 mA, 200 Ω resistor built in.** It's only ~2 mA (dim) at 3.3 V, so it's switched from 5 V through a transistor. 0.11" (2.8 mm) quick-connect terminals. Yellow is easier to see when unlit and suits the "lamplight" theme |
 | 2.0" 320×240 IPS TFT, ST7789, with EYESPI breakout (Adafruit) | 1 | SPI display for the animated face. The microSD slot on the breakout isn't used |
 
 ### Power, cooling and timekeeping
@@ -35,8 +35,8 @@ Wiring is documented in [wiring.md](wiring.md).
 ### Electronics for the button LED and screen
 | Part | Qty | Notes |
 |---|---|---|
-| Logic-level N-channel MOSFET (e.g. 2N7000) **or** NPN transistor (e.g. 2N2222) | 1 | Lets a GPIO pin switch the button's 5 V/12 V LED |
-| Resistors: ~220 Ω (gate/base) and 10 kΩ (pull-down) | 1 each | Values depend on MOSFET vs transistor; see [wiring.md](wiring.md) |
+| NPN transistor (e.g. 2N2222 / PN2222) **or** logic-level N-channel MOSFET (e.g. 2N7000) | 1 | Low-side switch so a GPIO pin can turn on the button's 5 V LED (~10 mA, so any small-signal part works) |
+| Resistors: 1 kΩ base resistor (NPN) **or** 220 Ω gate + 10 kΩ pull-down (MOSFET) | 1 each | No LED current-limiting resistor needed; it's built into the button. See [wiring.md](wiring.md) |
 | Small protoboard or Raspberry Pi proto HAT | 1 | Holds the LED driver circuit and connectors |
 | Adafruit EYESPI Pi Beret | 1 | Connects the display to the Pi with a flat cable instead of loose jumpers. Alternative: jumper wires to the breakout's header pins |
 | EYESPI flat (FPC) cable, length to suit the enclosure | 1 | Only needed with the Pi Beret |
@@ -44,7 +44,7 @@ Wiring is documented in [wiring.md](wiring.md).
 ### Connectors and wiring
 | Part | Qty | Notes |
 |---|---|---|
-| 2.8 mm female spade (quick-disconnect) terminals | 4 | For the arcade button's switch and LED terminals. Confirm terminal size on your button |
+| 0.11" (2.8 mm) quick-connect wire pairs (Adafruit sells pre-crimped pairs) | 2 pairs | One pair for the switch, one for the LED. Or crimp your own 2.8 mm female spade terminals |
 | JST-XH or Dupont connector kit | 1 kit | So every part can be unplugged for service without desoldering |
 | Hook-up wire (22–26 AWG) | — | |
 | Heat-shrink tubing | — | |
@@ -83,7 +83,9 @@ Wiring is documented in [wiring.md](wiring.md).
 - 3D printer (see the enclosure repo for material and settings)
 
 ## Open items for hw-rev-A
-- [ ] Confirm the arcade button's LED voltage and terminal size
+- [x] Button: Adafruit #3491 family. LED is 5 V / ~10 mA with built-in resistor; 0.11" terminals
+- [ ] Button color: clear vs yellow
+- [ ] Identify the LED's + and − terminals on the actual button (check the markings, or test with 5 V)
 - [ ] Decide storage: high-endurance microSD or NVMe
 - [ ] Decide Pi 5 RAM: 4 GB or 8 GB
 - [ ] Find a panel-mount USB-C extension that's genuinely rated for 5 A, or use a grommet
