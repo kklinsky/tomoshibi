@@ -38,20 +38,49 @@ code, enclosure files and docs on GitHub so other families can build their own.
 | 2.0" 320×240 IPS TFT, ST7789 (Adafruit EYESPI) | SPI. Connect via an EYESPI adapter (e.g. EYESPI Pi Beret) or jumper wires to SPI0. The microSD slot on the breakout isn't needed. |
 | 3D-printed enclosure (Fusion 360) | Lantern/lamp form to suit the name. Button on top, screen angled toward a seated person, Jabra seated with its grille unobstructed. Weighted base, cable strain relief, ventilation for the Pi. Source `.f3d` + `.step` + `.stl` go in `hardware/enclosure/`. |
 
-### Screen: what it's for
-The screen supports the voice interaction. It never needs to be touched or navigated.
-- **Idle:** large day of week, "Saturday afternoon", date, time. A "dementia clock" is a well-known orientation aid.
-- **Listening / Thinking / Speaking:** a simple, calm animation (a flickering lamp flame fits the name), and the button LED matches.
-- **Reminder:** the reminder text in large type ("Morning pills — blue box by the sink").
-- **People:** when it talks about someone from the people file, it shows their photo and name ("Karen — your daughter").
-- **Offline:** a small, clear indicator plus the normal clock.
+### Screen: an animated face
+The screen's main job is to give Tomoshibi a **friendly animated face**, so it feels like someone to talk to rather than a gadget. It never needs to be touched or navigated.
+
+#### Face design guidelines
+- **Simple and cartoon-like, not realistic.** Two large eyes and a simple mouth (think a friendly robot or a lantern character). Realistic human faces can be confusing or unsettling for someone with dementia, who may believe a real person is inside the device.
+- **Calm.** Slow, smooth motion; no sudden jumps, flashing or fast colors. Soft warm palette on a dark background (less glare, readable across a room).
+- **Consistent.** The same face every day. Expressions change, the character doesn't.
+- **Expressive in a few clear ways** instead of many subtle ones.
+
+#### Face states
+| State | Face | Button LED |
+|---|---|---|
+| **Idle** | Relaxed, occasional blink, gentle "breathing", eyes drift slowly | off (or dim glow) |
+| **Listening** | Eyes wide and attentive, slight lean/tilt, mouth closed | **on** |
+| **Thinking / looking up** | Eyes glance up and to the side, small animated "…" | slow pulse |
+| **Speaking** | Mouth moves in time with the voice | on, dim |
+| **Happy** (greetings, good news, family messages) | Smiling eyes | — |
+| **Concerned** (distress, he sounds upset) | Soft, sympathetic eyes; never alarmed-looking | — |
+| **Reminder** | Gentle "ahem" look, then the reminder card (below) | slow pulse |
+| **Sleeping** (quiet hours) | Eyes closed, dimmed screen; wakes with a stretch when the button is pressed | off |
+| **Offline / problem** | Normal face plus a small, clear indicator in the corner; never a sad or broken face | — |
+
+#### Orientation strip
+The face takes the upper ~70% of the screen. A **strip along the bottom always shows the day and time of day**, e.g. "Saturday afternoon · 2:15". The day/date clock is a well-known orientation aid, so it stays visible under the face instead of being lost to it. A press-free "full clock" (large day, date, time) takes over the whole screen for a few seconds after the morning greeting, or when he asks "what day is it?".
+
+#### Cards (temporary, then back to the face)
+- **Reminder:** large text ("Morning pills — blue box by the sink"), with a small version of the face in the corner.
+- **People:** when it talks about someone from the people file, their photo and name ("Karen — your daughter"). Also used when a family message arrives.
+- **Looking up:** a small "Looking that up…" under the thinking face.
+
+#### Implementation
+- **Lip sync from the audio, not the text.** The mouth opening follows the loudness (RMS envelope) of the TTS audio as it plays, in ~30 ms windows, mapped to 3–5 mouth shapes. Works with any TTS engine. Piper can also output phoneme timings, which allow true viseme mouth shapes later if the simple version feels off.
+- **Rendering:** a separate display process/thread draws frames with Pillow from **pre-drawn sprite parts** (eye shapes, eyelids, mouths, pupils) composited per frame, and pushes them over SPI. It runs independently so audio never stutters.
+- **Frame rate:** 320×240 at 16-bit color is ~150 KB/frame. At the ST7789's SPI clock that's roughly 25–40 fps maximum, so target **~20 fps**, redrawing only the changed region (eyes/mouth bounding boxes) to keep CPU low.
+- **Face packs for forks:** a face is a folder of sprite PNGs plus a `face.json` (positions, expression definitions, palette). The default face ships in `assets/faces/tomoshibi/`. Families can swap in another (e.g. a lantern-flame character, or a pet-like face) without touching code. A tiny previewer script (`scripts/preview_face.py`) renders it in a desktop window for design work off-device.
+- **Brightness:** dims automatically at night/quiet hours. Optional light sensor later.
 
 ## 4. Interaction model
 
 ### Dad
-1. **Press the button** → chime, LED on, screen shows "Listening".
+1. **Press the button** → chime, LED on, the face looks up attentively.
 2. Speak. The turn ends after ~1.5 s of silence (voice-activity detection, tuned generously for slower speech) or on a second press.
-3. LED pulses, screen shows "Thinking" → answer is spoken while the screen shows "Speaking".
+3. LED pulses and the face shows "thinking" → the answer is spoken while the face's mouth moves with the voice.
 4. **Pressing during an answer stops it** and starts listening again (barge-in).
 5. Optional follow-up window: listen for a few seconds after an answer without another press. Off by default; turn on if it suits Dad.
 
@@ -82,7 +111,7 @@ Voice speaker identification isn't reliable enough to be the permission boundary
 ```
 ┌──────────────────────────── Raspberry Pi 5 ─────────────────────────────┐
 │                                                                         │
-│  Button/LED (gpiozero) ─┐        ┌─ Display (ST7789, Pillow frames)     │
+│  Button/LED (gpiozero) ─┐        ┌─ Face renderer (ST7789, sprites)     │
 │                         ▼        ▼                                      │
 │                 ┌── Core: state machine + event bus ──┐                 │
 │                 │ idle → listening → thinking →       │                 │
@@ -360,9 +389,9 @@ tomoshibi/
 
 | Phase | Goal | Done when |
 |---|---|---|
-| **0 – Bench** | Pi + Jabra + button/LED (with MOSFET) + ST7789 wired; install script | Press → LED on → record → play back; screen shows the clock |
+| **0 – Bench** | Pi + Jabra + button/LED (with MOSFET) + ST7789 wired; install script; face renderer prototype on desktop | Press → LED on → record → play back; screen shows the idle face and orientation strip |
 | **1 – Hear & speak locally** | VAD + local STT + Piper; STT benchmark on Dad's voice | Spoken phrase transcribed and echoed back with ≤ 1.5 s overhead |
-| **2 – Talk** | LLM provider interface + Anthropic adapter, profile/people/wiki context, streaming TTS, screen states, barge-in | Natural conversation, ≤ 3 s to first audio; switching to OpenAI is a config change |
+| **2 – Talk** | LLM provider interface + Anthropic adapter, profile/people/wiki context, streaming TTS, face states + lip sync, barge-in | Natural conversation, ≤ 3 s to first audio; switching to OpenAI is a config change |
 | **3 – Remind** | SQLite events, scheduler, acknowledgments, morning greeting, caregiver edit path | Reminders fire with Wi-Fi unplugged; Mom adds one without help |
 | **3a – Family Slack** | Slack app (Socket Mode), allowlist, outbound messages with confirmation, inbound classification (message / event / note), inbox delivery + receipts, outbox retry, alerts | "We're visiting Saturday at 2" in Slack → Dad hears about it at the morning greeting; "Tell Kevin hi" → arrives as a DM |
 | **4 – Offline brain & hardening** | Local LLM fallback, self-test, watchdog, overlay FS, heartbeat | Pull the network cable mid-conversation and it degrades gracefully |
