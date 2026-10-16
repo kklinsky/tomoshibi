@@ -360,9 +360,79 @@ Edit `config.yaml` and restart, or (admin role) `/tomoshibi set web_search off` 
 - RTC battery keeps the time right through power cuts without network.
 - Startup self-test: mic, speaker, Jabra mute state, display, button, network. Plain-language spoken result if something's wrong.
 - Heartbeat to my homelab (Uptime Kuma / n8n webhook); alert me if it goes silent. The device also posts "offline since…/back online" to `#tomoshibi`.
-- Admin access over **Tailscale**. Updates only when I trigger them, never automatically during the day.
-- Overlay (read-only) root filesystem to survive sudden power loss; `data/` on a writable partition with nightly backup.
+- Admin access over **Tailscale**. Updates are scripted and safe to roll back (§10a), and never automatic during the day.
+- Overlay (read-only) root filesystem to survive sudden power loss. Releases, models, `data/` and config live on a writable partition with nightly backup, so updates work without disabling the overlay.
 - Secrets (API keys) in `/etc/tomoshibi/secrets.env`, outside the repo and data dir.
+
+## 10a. Install & update
+
+Both must be a single command a non-expert can run, and both must be **safe to re-run**.
+
+### Install
+On a fresh Raspberry Pi OS Lite (64-bit), over SSH:
+```bash
+curl -fsSL https://raw.githubusercontent.com/kklinsky/tomoshibi/main/scripts/install.sh | bash
+```
+The README also shows the cautious version (download, read, then run) for people who prefer not to pipe to bash.
+
+`install.sh` does, in order, printing a plain-language line for each step:
+1. **Preflight:** confirms Pi 5, 64-bit OS, supported OS release, free disk space, internet. Stops with a clear message if anything is wrong.
+2. **System packages** (`apt`): Python venv, ALSA/PortAudio, `lgpio`, `git`, build basics. Installs **uv** for fast, reproducible Python environments.
+3. **Hardware config:** enables SPI (`raspi-config nonint`), enables the hardware watchdog, sets the timezone and configures the RTC.
+4. **Service user:** creates a `tomoshibi` system user in the `audio`, `gpio` and `spi` groups. The service never runs as root.
+5. **Code:** installs the **latest tagged release** (not `main`) into `releases/<version>/` with its own venv from a locked `uv.lock`, and points `current` at it.
+6. **Models:** downloads the STT model, Piper voice and VAD model listed in `models.lock` (URL + SHA-256), verifying each checksum. Optional local LLM via Ollama if the Pi has 8 GB and the user opts in.
+7. **Config & data:** creates `/etc/tomoshibi/config.yaml` from the example, `secrets.env` (mode 0600), and the data directory seeded from `examples/data/`. **Never overwrites existing config or data** on re-run.
+8. **Service:** installs and enables the `systemd` unit.
+9. **Setup wizard:** runs `tomoshibi setup` (below).
+10. **Self-test:** plays a chime, says "Hello, I'm ready," shows the face, and asks the user to press the button.
+
+The script is **idempotent**: re-running it repairs a broken install without touching config or data. `install.sh --answers answers.yaml` runs the whole thing non-interactively (for reinstalling or building a second device).
+
+### Setup wizard (`tomoshibi setup`)
+A terminal Q&A that can be re-run any time to change settings. It writes the config, so nobody needs to hand-edit YAML for the basics:
+- Person's name and what to call him, location (for weather), timezone.
+- **Audio:** detects the Jabra (or other USB speakerphone), plays a test sound, records a test phrase and plays it back.
+- **Button & LED:** "Press the button now" → confirms the GPIO pin; blinks the LED.
+- **Display:** shows a test pattern and the face; asks if it looks right (orientation/color order are the usual problems).
+- **AI provider:** Claude / ChatGPT / local only; pastes the API key; makes one test call.
+- **Internet lookups:** on/off per capability (§8a).
+- **Family Slack:** optional; links to the app manifest, pastes tokens, maps Slack users to people, sends a test message.
+- **Quiet hours** (default midnight–7 AM).
+
+### Update
+```bash
+sudo tomoshibi update            # latest stable release
+sudo tomoshibi update --check    # just say whether an update is available
+sudo tomoshibi rollback          # go back to the previous release
+```
+Also available to admins from Slack: `/tomoshibi update`, `/tomoshibi rollback`.
+
+**How an update works:**
+1. Checks GitHub Releases for a newer tag on the configured channel (`stable` by default; `beta` for testing on my own bench unit). Shows the changelog.
+2. **Refuses to start** during a conversation, a pending reminder or (unless forced) outside the update window, by default during quiet hours or when an admin explicitly runs it.
+3. **Backs up** `data/` and config to a timestamped archive.
+4. Downloads the release into a **new** `releases/<version>/` directory with its own venv. The running version is untouched, so a failed download or install changes nothing.
+5. Downloads only the models whose `models.lock` entry changed.
+6. Runs **migrations**: numbered SQLite schema migrations, and config migrations that add new settings with defaults without overwriting existing values.
+7. Switches the `current` symlink and restarts the service.
+8. **Health check:** the service must report healthy (audio, display, button, LLM reachable or cleanly offline) within 60 s. If not, it **rolls back automatically** to the previous release and backup, and posts what happened to `#tomoshibi`.
+9. Keeps the last 3 releases for rollback; prunes older ones.
+
+**Automatic updates are off by default.** Options in config:
+```yaml
+updates:
+  channel: stable          # stable | beta
+  check: daily             # posts "Tomoshibi v0.5 is available" to Slack, installs nothing
+  auto_install: false      # true = install during quiet hours, e.g. 3 AM, with auto-rollback
+```
+Builders who aren't around to update by hand can turn `auto_install` on. The device tells Dad nothing about updates, so they're invisible to him unless something goes wrong.
+
+### Releases
+- Semantic versioning, `CHANGELOG.md` written for builders (what changed, anything they need to do).
+- GitHub Actions runs lint and tests on every push, and on a tag builds the release artifact (source + `uv.lock` + `models.lock` + checksums) attached to the GitHub Release.
+- `scripts/uninstall.sh` removes the service, code and models, and asks before deleting data.
+- Later: a prebuilt SD card image (via `pi-gen`) for builders who don't want to use SSH at all.
 
 ## 11. Open-source packaging
 
@@ -375,8 +445,14 @@ tomoshibi/
 │   ├── BOM.md              # parts list with links
 │   ├── wiring.md           # button/LED/MOSFET + ST7789 pinout, photos
 │   └── enclosure/          # .f3d, .step, .stl, print settings
-├── scripts/install.sh      # one-command setup on fresh Raspberry Pi OS
+├── scripts/
+│   ├── install.sh          # one-command setup on fresh Raspberry Pi OS (§10a)
+│   └── uninstall.sh
+├── models.lock             # model URLs + SHA-256
+├── uv.lock                 # pinned Python dependencies
+├── migrations/             # numbered SQLite schema migrations
 ├── deploy/tomoshibi.service
+├── CHANGELOG.md
 ├── docs/                   # DESIGN.md, setup guide for non-technical builders, caregiver guide
 └── tests/
 ```
@@ -389,7 +465,7 @@ tomoshibi/
 
 | Phase | Goal | Done when |
 |---|---|---|
-| **0 – Bench** | Pi + Jabra + button/LED (with MOSFET) + ST7789 wired; install script; face renderer prototype on desktop | Press → LED on → record → play back; screen shows the idle face and orientation strip |
+| **0 – Bench** | Pi + Jabra + button/LED (with MOSFET) + ST7789 wired; first version of install.sh + setup wizard (audio/button/display tests); face renderer prototype on desktop | Press → LED on → record → play back; screen shows the idle face and orientation strip |
 | **1 – Hear & speak locally** | VAD + local STT + Piper; STT benchmark on Dad's voice | Spoken phrase transcribed and echoed back with ≤ 1.5 s overhead |
 | **2 – Talk** | LLM provider interface + Anthropic adapter, profile/people/wiki context, streaming TTS, face states + lip sync, barge-in | Natural conversation, ≤ 3 s to first audio; switching to OpenAI is a config change |
 | **3 – Remind** | SQLite events, scheduler, acknowledgments, morning greeting, caregiver edit path | Reminders fire with Wi-Fi unplugged; Mom adds one without help |
