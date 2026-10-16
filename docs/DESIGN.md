@@ -267,13 +267,54 @@ Configurable (`quiet_hours: { start: "00:00", end: "07:00" }`). During quiet hou
 |---|---|---|
 | `get_datetime`, `get_weather`, `get_today_schedule`, `list_reminders` | ✓ | ✓ |
 | `lookup_person`, `search_knowledge` | ✓ | ✓ |
-| `web_search` (cloud only) | ✓ | ✓ |
+| `web_search`, `fetch_page` (if enabled, §8a) | ✓ | ✓ |
 | `send_message(contact, text)` to allowlisted family via Slack, confirmed aloud | ✓ | ✓ |
 | `read_messages` (deliver queued inbox messages), `list_family_notes` | ✓ | ✓ |
 | `add_event`, `update_event`, `cancel_event` | per §4 guard | ✓ |
 | `notify_caregiver(reason)` (distress, fall, scam call, missed reminders) | automatic | — |
 
 Tools are defined once in the neutral schema and every provider adapter exposes them.
+
+## 8a. Internet lookups (configurable)
+
+The device can look things up online ("When is the Thanksgiving parade?", "Did the Tigers win last night?", "What's the new pope's name?"). Some families won't want that, so it's a setting, **off or on per capability**:
+
+```yaml
+internet:
+  web_search:
+    enabled: true              # false = no web lookups at all
+    backend: brave             # brave | searxng | tavily | provider_native
+    max_searches_per_turn: 2
+    safe_search: strict
+    blocked_domains: []        # e.g. tabloids, shopping sites
+    allowed_domains: []        # non-empty = only these sites
+  fetch_page: { enabled: true }  # read a specific result page
+  weather:  { enabled: true, location: "Columbus, OH" }
+  news:     { enabled: true }    # morning headlines / "what's in the news"
+```
+
+### How it works
+- **Disabled means the tool doesn't exist.** When `web_search` is off, the tool is not registered with the model at all, rather than registered with "please don't use it". The system prompt says it can't look things up, so it answers from general knowledge and is honest about it: "I can't look that up, but last I knew…"
+- **Search backend is Tomoshibi's own, by default.** Search runs through a pluggable `SearchBackend` so it works the same with Claude, ChatGPT or a local model:
+  - `brave`: Brave Search API, simple key and a free tier. The default.
+  - `searxng`: self-hosted metasearch, no third-party API key. A good fit for a homelab, though it adds a dependency on the homelab being reachable.
+  - `tavily`: search API built for LLM use.
+  - `provider_native`: use the LLM vendor's built-in web search (Anthropic and OpenAI both offer one). Less code, but tied to that provider and not available to the local fallback.
+- Results are trimmed to short snippets before they go to the model, to keep latency and cost down.
+- **Spoken answers stay simple.** No URLs or citations read aloud. Sources are logged locally, and included in any Slack answer.
+- While online lookups are running, the screen shows "Looking that up…" and it says so if it takes more than a couple of seconds.
+
+### Safety
+- Safe search is strict by default. Families can block or allowlist domains.
+- It never helps with purchases, logins or forms. Search is read-only: no clicking links in pages, no following instructions found on pages. Fetched page content is treated as data, never as instructions.
+- Health questions get general information plus "that's a good one to ask your doctor"; it never overrides what the family put in the profile.
+- Each search query is logged on the device so the family can see what kinds of things are being looked up, if they've opted into summaries.
+
+### Privacy
+Search queries go to the chosen backend (or the LLM vendor for `provider_native`). That's the main reason a family might turn it off, and `searxng` is the most private option when it's on. The README explains this plainly in the setup guide.
+
+### Changing it
+Edit `config.yaml` and restart, or (admin role) `/tomoshibi set web_search off` in Slack, which takes effect at the next conversation.
 
 ## 9. Conversation style & safety
 
