@@ -20,7 +20,7 @@ code, enclosure files and docs on GitHub so other families can build their own.
 
 ## 2. Design principles
 
-1. **One obvious action.** One lit arcade button on top. Press it, talk.
+1. **One obvious action.** One lit button, right below the face. Press it, talk.
 2. **Endless patience.** Repeated questions get the same warm, complete answer every time. It never says "you already asked that."
 3. **It speaks first when it matters.** Reminders and the morning greeting happen without Dad having to ask.
 4. **Local first.** Speech recognition, speech synthesis, reminders, the clock and the personal knowledge base all run on the Pi. Only the "big brain" (the LLM) needs the internet, and there's a local fallback for that too.
@@ -34,9 +34,32 @@ code, enclosure files and docs on GitHub so other families can build their own.
 |---|---|
 | Raspberry Pi 5 | **8 GB recommended** if running a local fallback LLM; 4 GB is fine for STT/TTS only. Active cooler, official 27 W USB-C PSU, RTC battery. |
 | Jabra Speak 410 (USB) | Full-duplex speakerphone with echo cancellation, good pickup across a room. Appears as a standard USB audio device. **Its touch buttons (mute, volume, call) are easy to hit by accident.** The enclosure should cover mute/call, or the software should detect mute and say "I'm muted, press the button with the line through it." |
-| Arcade button with built-in LED | Input on a GPIO with internal pull-up. **Check the LED voltage:** most are 5 V or 12 V with an internal resistor. GPIO pins are 3.3 V / ~16 mA, so drive the LED through a small N-channel MOSFET or NPN transistor (5 V from the Pi header). The LED is on only while listening (§4), so simple on/off is enough; PWM allows a soft fade. |
+| **30 mm** arcade button with built-in LED | Smaller than first planned, because the top of the enclosure is taken by the Jabra. Placement and making it easy to find are covered under *Enclosure layout* below. Input on a GPIO with internal pull-up. **Check the LED voltage:** most are 5 V or 12 V with an internal resistor. GPIO pins are 3.3 V / ~16 mA, so drive the LED through a small N-channel MOSFET or NPN transistor (5 V from the Pi header). The LED is on only while listening (§4), so simple on/off is enough; PWM allows a soft fade. |
 | 2.0" 320×240 IPS TFT, ST7789 (Adafruit EYESPI) | SPI. Connect via an EYESPI adapter (e.g. EYESPI Pi Beret) or jumper wires to SPI0. The microSD slot on the breakout isn't needed. |
-| 3D-printed enclosure (Fusion 360) | Lantern/lamp form to suit the name. Button on top, screen angled toward a seated person, Jabra seated with its grille unobstructed. Weighted base, cable strain relief, ventilation for the Pi. Source `.f3d` + `.step` + `.stl` go in `hardware/enclosure/`. |
+| 3D-printed enclosure (Fusion 360) | Lantern/lamp form to suit the name. Jabra on top, screen and button on the front (see below). Weighted base, cable strain relief, ventilation for the Pi. Source `.f3d` + `.step` + `.stl` go in `hardware/enclosure/`. |
+
+### Enclosure layout
+```
+        ┌──────────────────────┐   ← Jabra Speak 410 sits in a recess on top,
+        │  ( Jabra, grille up ) │     grille open to the room; printed cover ring
+        ├──────────────────────┤     hides its mute/call touch keys
+        │   ┌──────────────┐   │
+        │   │  ◕‿◕  (face)  │   │   ← 2.0" screen, front face angled ~15° up
+        │   │ Sat afternoon │   │     toward a seated person
+        │   └──────────────┘   │
+        │         (●)          │   ← 30 mm lit button directly below the face
+        │                      │
+        └──────────────────────┘   weighted base; USB-C power + Jabra cable out the back
+```
+- **Jabra on top.** It's about 120 mm across. Seat it in a recess with its grille unobstructed (it needs to hear the room and project sound). A printed **cover ring** blocks the mute and call touch keys so they can't be pressed by accident; volume can stay reachable or be covered too, with volume controlled by voice instead ("speak up"). The software still detects mute as a backup. The Jabra's USB cable is fixed, so route it down inside the enclosure to the Pi.
+- **Button on the front, directly below the face.** He looks at the face, and the button is right there. With the Jabra on top, the front is also where the screen is, so the face and the button read as one thing: press here to talk to *this*.
+- **Making a 30 mm button easy to find and press:**
+  - A raised printed **bezel** around it in a contrasting color, so it's findable by touch and by eye.
+  - For a dim room, print the bezel in a light or glow-in-the-dark filament instead of lighting the LED at idle. The LED keeps one meaning: on = listening.
+  - A light-action switch (avoid stiff ones), mounted solidly so the enclosure doesn't slide when pressed: weighted base plus rubber feet.
+  - Nothing else on the front that looks like a button.
+- **Airflow:** the Pi 5's active cooler needs intake and exhaust vents away from the Jabra's mic and speaker so fan noise isn't picked up.
+- **Service access:** a screw-on back or base panel for the Pi, SD card and wiring; the Jabra lifts out of its recess.
 
 ### Screen: an animated face
 The screen's main job is to give Tomoshibi a **friendly animated face**, so it feels like someone to talk to rather than a gadget. It never needs to be touched or navigated.
