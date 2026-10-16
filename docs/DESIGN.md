@@ -319,42 +319,178 @@ Other offline details:
 
 ## 6. Personal knowledge base
 
-Human-editable files, so family members can update them with any text editor and forks can see exactly what to fill in.
+The knowledge base has two parts:
+1. A structured **family file** (`people.yaml`) that the family edits directly.
+2. A **knowledge pipeline** that turns raw material about Dad (web links, notes, recorded stories, documents) into clean, topic-organized files. **A person reviews everything before it reaches the device.**
 
 ```
 data/                      ← gitignored; real personal data lives only here
 ├── profile.yaml           # name, what to call him, hometown, routines, preferences,
 │                          # topics he enjoys / topics to avoid, how to handle distress
 ├── persona.yaml           # the device's character: name, voice, temperament (§9a)
-├── people.yaml            # one entry per person
-├── people/photos/         # karen.jpg …  (shown on screen)
-├── wiki/                  # free-form Markdown: life story, career, places, pets,
-│   ├── life-story.md      #   "where things are kept", medical context the family
-│   └── ...                #   chooses to share
-└── tomoshibi.db           # SQLite: events, reminders, acks, conversation log
+├── people.yaml            # family tree + friends (§6.1)
+├── photos/                # karen.jpg …  (shown on screen)
+├── wiki/                  # approved, processed knowledge (§6.2)
+│   ├── life-story.md
+│   ├── career.md
+│   ├── navy.md
+│   ├── places-lived.md
+│   ├── favorites.md       # teams, music, foods, shows
+│   ├── routines.md        # daily habits, where things are kept
+│   └── timeline.yaml      # dated life events
+└── tomoshibi.db           # SQLite: events, reminders, acks, notes, conversation log
 examples/data/             ← committed; fictional sample family for forks/tests
 ```
 
-`people.yaml` example:
+### 6.1 Family file (`people.yaml`)
+
+**Store only the basic relationships (parents, spouse) and let code work out the rest.** Nobody writes "Emma is Bob's granddaughter" by hand, and the AI doesn't infer it. From `Emma → parent Karen → parent Bob`, code works out "granddaughter" every time and hands the answer to the model.
+
 ```yaml
-- name: Karen
-  relationship: daughter
-  aliases: [Karen, "my daughter"]
-  photo: people/photos/karen.jpg
-  notes: Lives in Columbus. Visits on Saturdays. Married to Mike; kids Emma (12) and Leo (9).
-  sensitive: false
-- name: Ruth
-  relationship: sister
-  deceased: 2023-04-10
-  guidance: >
-    If he asks for Ruth, don't announce her death abruptly. Talk warmly about her
-    and gently redirect. (The family decides this wording.)
+people:
+  - id: bob
+    name: Robert "Bob"
+    is_subject: true              # the person the device is for
+    born: 1944-03-12
+
+  - id: carol
+    name: Carol
+    called: [Carol, "your wife"]
+    born: 1946-07-02
+    spouse: bob
+    married: 1967-06-17           # becomes an anniversary event automatically
+
+  - id: karen
+    name: Karen Smith
+    called: [Karen]
+    born: 1970-09-30
+    parents: [bob, carol]
+    spouse: mike
+    lives: Columbus, OH
+    photo: photos/karen.jpg
+    notes: Visits most Saturdays. Teaches 4th grade.
+
+  - id: mike
+    name: Mike Smith
+    spouse: karen
+
+  - id: emma
+    name: Emma Smith
+    born: 2014-05-21
+    parents: [karen, mike]
+    notes: Plays soccer. Loves drawing horses.
+
+  - id: ruth
+    name: Ruth Miller
+    parents: [bobs_father, bobs_mother]   # makes her Bob's sister
+    born: 1941-11-04
+    died: 2023-04-10
+    guidance: >
+      If he asks for Ruth, don't announce her death abruptly. Talk warmly about
+      her and gently redirect. (Family-agreed wording.)
+
+  - id: frank
+    name: Frank Russo
+    relationship_override: "his best friend from the Navy"   # people outside the tree
 ```
 
-**How it reaches the LLM:**
-- `profile.yaml` + `people.yaml` go into the system prompt every time (small and cached).
-- `wiki/` goes in whole while it's small. Once it outgrows a few thousand words it moves behind a `search_knowledge(query)` tool backed by local SQLite FTS5 (keyword search). Local embeddings are a later option if keyword search proves insufficient.
-- The same files feed the offline direct-lookup path.
+| Field | Purpose |
+|---|---|
+| `id` | Stable key used by `parents`, `spouse`, and events |
+| `parents`, `spouse` (+ `married`, `divorced`) | The only relationships stored. Placeholder ids (e.g. `bobs_father`) are allowed for ancestors who aren't otherwise described |
+| `relationship_override` | Friends, neighbors, caregivers, his doctor: anyone who doesn't fit the tree, or a relationship the family wants described its own way ("like a brother to him") |
+| `called` | What he actually calls them. Helps speech recognition and matching |
+| `born`, `died` | **Ages are calculated when asked, never stored.** Birthdays and death anniversaries are derived from these |
+| `photo`, `lives`, `notes` | Shown on screen / used in conversation |
+| `guidance` | Family-agreed handling for sensitive cases |
+
+**What the code derives:**
+- **Relationship to Dad** for anyone in the tree: daughter, son-in-law, granddaughter, sister, niece, great-grandson, step- and in-law variants.
+- **Relationships between people:** "Who are Emma's parents?", "Is Mike Karen's husband?"
+- **Birthday and anniversary events** (§7): "Tomorrow is Emma's 12th birthday. Would you like to send her a message?" That then goes out through Slack (§6a). It gives him a reason to reach out to people.
+- `lookup_person` (§8) returns the name, the derived relationship with its path ("your granddaughter, Karen's daughter"), age, photo, notes and guidance.
+- A **validator** (`tomoshibi kb check`) catches mistakes: unknown ids, cycles, a parent born after their child, a second spouse with no `divorced`/`died` on the first.
+
+If the family finds a spreadsheet easier, `tomoshibi kb import-people family.csv` converts one to YAML. YAML stays the version the device reads.
+
+### 6.2 Knowledge pipeline
+
+```
+sources/                     raw material, kept forever (private, never in the public repo)
+├── links.txt                URLs: articles, records, relatives' obituaries
+├── web/                     saved snapshots of those pages (pages disappear)
+├── notes/                   text files the family writes
+├── recordings/              family members telling stories → transcribed locally
+└── documents/               scanned letters, résumés, programs
+        │
+        ▼  tomoshibi ingest      (runs on the admin's PC, uses Claude or ChatGPT)
+review/                      drafts: one file per topic, each fact with source + confidence
+        │
+        ▼  tomoshibi review      (approve / edit / reject, fact by fact)
+data/wiki/                   only approved content; what the device uses
+        │
+        ▼  tomoshibi kb push     (over Tailscale; device validates and reloads)
+device
+```
+
+**Why process the material rather than give the device raw files**
+- Web pages and long documents are noisy and long. Raw, they make every conversation more expensive and slower, and they contain plenty that doesn't matter.
+- Processed facts are short, consistent and organized by topic, so they're easy to search. That matters most for the local fallback model, which can only take a small amount of text at a time.
+- `timeline.yaml` makes it possible to answer questions like "What was I doing in 1975?" and to mark life anniversaries ("50 years ago today you started at Ford").
+
+**Why keep the raw material:** you can re-process it later with better models or a better format, and every fact points back to where it came from.
+
+**Why a person reviews every fact**
+This follows the "never invent personal facts" rule (§4). AI extraction gets things wrong in predictable ways:
+- **Search results about the wrong person.** Online material about someone with his name may be about a different person with the same name. This is the most likely failure, and the easiest to miss.
+- **Mixed-up details:** wrong years, people blended together, details "filled in" that no source contains.
+- **Conflicting sources.** Ingest flags these ("Source A says 1968, B says 1969") for the family to settle. It doesn't pick one.
+
+`ingest` therefore never writes to `data/wiki/` directly. It produces drafts, and `review` is a simple terminal walk-through (approve / edit / reject / mark sensitive) that writes approved facts.
+
+**What `ingest` does**
+1. Fetches any new URLs in `links.txt` and saves a readable snapshot to `sources/web/`.
+2. Transcribes new audio in `sources/recordings/` locally (the same Whisper model the device uses).
+3. Sends each source, along with the current `people.yaml` and wiki, to the configured LLM with an extraction prompt. The prompt asks it to: extract only facts stated in the source; attach a quote and source to each fact; flag anything that might be about a different person; propose new `people.yaml` entries and timeline events; and note conflicts with existing facts.
+4. Writes the results to `review/`. Already-processed sources are skipped (tracked by checksum), so it's safe to re-run.
+
+**Wiki file format**
+One topic per Markdown file. Short factual statements in the third person, each with a source; plus **guidance on how to talk about the topic**, not just facts:
+
+```markdown
+---
+topic: Navy
+sensitivity: normal          # normal | avoid_unless_raised | never
+---
+## Facts
+- Bob served in the US Navy from 1962 to 1966 aboard the USS … [source: notes/carol-navy.md]
+- He was a radioman. [source: recordings/2026-11-02-carol.txt]
+
+## How to talk about it
+He's proud of his Navy years and loves talking about them. Good topic when he seems
+bored or low. He likes being asked about the ports he visited.
+```
+
+`sensitivity` controls whether the device may raise a topic itself: `avoid_unless_raised` (e.g. a layoff, a painful loss) means it only discusses it if he brings it up; `never` means it gently steers away.
+
+**Where `sources/` lives:** on the admin's PC, ideally in a **private** git repo (e.g. `tomoshibi-family-data`) along with `data/`, for history and backup. It's never committed to the public repo; the pre-commit guard (§11) blocks it.
+
+### 6.3 Keeping it growing
+- **Filling knowledge gaps from Slack.** Unanswered personal questions are logged as knowledge gaps (§4). The bot asks in `#tomoshibi`: *"Dad asked where he and Carol went on their honeymoon. Does anyone know?"* A reply in the thread becomes a **pending fact**, approved with a ✅ reaction (or in `tomoshibi review`) before it's used.
+- **Adding facts directly:** `/tomoshibi remember Dad's favorite song is "Moon River"` adds a pending fact the same way. That's different from a **family note** (§6a), which is temporary context ("ask about his knee this week") and expires.
+- **Recording stories.** Some of the best material will come from **recording Mom and other relatives telling stories about him**. It captures things no website has, and it's easier for them than writing. Drop the audio in `sources/recordings/` and run `ingest`.
+
+### 6.4 Using it in conversation
+- **Reminiscence.** Talking through memories is often encouraged for people with dementia. With a good knowledge base the device can start those conversations itself: *"Bob, Carol told me you once drove all the way to Florida in a '57 Chevy. What was that trip like?"* It only starts with topics marked `normal`, and at most once per conversation, so it doesn't feel like a quiz.
+- **How it reaches the model:**
+  - `profile.yaml`, `persona.yaml`, and a compact rendering of `people.yaml` (with derived relationships) go into the system prompt every time. Prompt caching keeps that cheap.
+  - The wiki goes in whole while it's small (a few thousand words). Beyond that it moves behind `search_knowledge(query)`, backed by local SQLite FTS5 keyword search; local embeddings are a later option. The local fallback model always uses search, because it can only take a small amount of text at a time.
+  - `get_timeline(year | range | on_this_day)` answers date-based questions.
+  - The same files feed the offline direct-lookup path (§5).
+- **Privacy:** during `ingest`, family information goes to the AI service used for processing. That's the same kind of service the device talks to every day, but the setup guide says so plainly.
+
+### 6.5 For forks
+`examples/data/` ships a fictional family tree, sample sources (a fake article and a story transcript), and their reviewed wiki output, so builders can run `ingest` → `review` → `kb push` end to end before adding anything real.
 
 ## 6a. Family channel (Slack)
 
@@ -385,7 +521,8 @@ Every allowlisted message is classified by the LLM (using the tool schema, so it
 | **Event** | "Sis and I are visiting Saturday around 2." | Becomes an event in SQLite, reminders included. The bot replies in thread with what it understood ("Added: Kevin & Karen visit, Sat Oct 24, 2:00 PM") and offers *Undo*. |
 | **Family note** (context) | "Dad's knee has been bothering him, ask how it's feeling." / "The Lions play tonight." | Stored as a note with an expiry (default 7 days, or the date it refers to). Active notes go into the system prompt so the device can naturally bring them up. |
 | **Question about Dad** | "How's Dad doing today?" | Replies from local data: reminders acknowledged, messages, a short summary if summaries are enabled. Never raw transcripts. |
-| **Command** | `/tomoshibi status`, `notes`, `cancel <event>` | Device health, active notes, event management (caregiver role). |
+| **Command** | `/tomoshibi status`, `notes`, `cancel <event>`, `remember <fact>` | Device health, active notes, event management (caregiver role), adding a pending knowledge fact (§6.3). |
+| **Answer to a knowledge-gap question** | Thread reply to *"Dad asked where he and Carol honeymooned…"* | Becomes a pending fact; approved with ✅ before use (§6.3). |
 
 When it isn't sure of the type or date, it asks back in the thread instead of guessing.
 
@@ -420,6 +557,7 @@ Configurable (`quiet_hours: { start: "00:00", end: "07:00" }`). During quiet hou
 - An **APScheduler** job (or a simple tick loop) on the device fires them, fully offline.
 - Missed reminders are retried and then go to the `FamilyChannel`. Firing, acknowledgment and escalation are all logged.
 - Created by voice (with the guard rules in §4), from family Slack messages (§6a), or by editing a seed `events.yaml` that's imported at startup.
+- **Generated from `people.yaml`** (§6.1): birthdays and wedding anniversaries, with an optional day-before heads-up and a prompt to send a message. Death anniversaries are *not* announced; they only inform how the device responds if he brings the person up.
 - Optional read-only sync from a shared family Google/ICS calendar.
 
 ## 8. Tools available to the LLM
@@ -427,7 +565,7 @@ Configurable (`quiet_hours: { start: "00:00", end: "07:00" }`). During quiet hou
 | Tool | Dad | Caregiver |
 |---|---|---|
 | `get_datetime`, `get_weather`, `get_today_schedule`, `list_reminders` | ✓ | ✓ |
-| `lookup_person`, `search_knowledge` | ✓ | ✓ |
+| `lookup_person` (derived relationship + path, age, photo), `search_knowledge`, `get_timeline` | ✓ | ✓ |
 | `web_search`, `fetch_page` (if enabled, §8a) | ✓ | ✓ |
 | `send_message(contact, text)` to allowlisted family via Slack, confirmed aloud | ✓ | ✓ |
 | `read_messages` (deliver queued inbox messages), `list_family_notes` | ✓ | ✓ |
@@ -671,7 +809,7 @@ tomoshibi-enclosure/
 └── README.md          # which hardware revision it fits, link back to tomoshibi
 ```
 
-- `.gitignore` blocks `data/`, `*.db`, secrets and recordings. A pre-commit check refuses commits containing files from `data/`.
+- `.gitignore` blocks `data/`, `sources/`, `review/`, `*.db`, secrets and recordings. A pre-commit check refuses commits containing files from those directories.
 - **License:** MIT or Apache-2.0 for Tomoshibi's code. Note that Piper's current release (piper1-gpl) is GPL-3.0. Calling it as a separate process, or keeping TTS a swappable plugin, avoids tying the whole project to GPL. Confirm before the first release.
 - A one-page **caregiver guide** (printable, large type) belongs in `docs/`.
 
@@ -681,9 +819,10 @@ tomoshibi-enclosure/
 |---|---|---|
 | **0 – Bench** | Pi + Jabra + button/LED (with MOSFET) + ST7789 wired; first version of install.sh + setup wizard (audio/button/display tests); face renderer prototype on desktop | Press → LED on → record → play back; screen shows the idle face and orientation strip |
 | **1 – Hear & speak locally** | VAD + local STT + Piper; STT benchmark on Dad's voice | Spoken phrase transcribed and echoed back with ≤ 1.5 s overhead |
-| **2 – Talk** | LLM provider interface + Anthropic adapter, profile/people/wiki context, streaming TTS, face states + lip sync, barge-in | Natural conversation, ≤ 3 s to first audio; switching to OpenAI is a config change |
+| **2 – Talk** | LLM provider interface + Anthropic adapter, profile/people/wiki context, family-tree relationship derivation + `kb check`, streaming TTS, face states + lip sync, barge-in | Natural conversation, ≤ 3 s to first audio; switching to OpenAI is a config change |
 | **3 – Remind** | SQLite events, scheduler, acknowledgments, morning greeting, caregiver edit path | Reminders fire with Wi-Fi unplugged; Mom adds one without help |
 | **3a – Family Slack** | Slack app (Socket Mode), allowlist, outbound messages with confirmation, inbound classification (message / event / note), inbox delivery + receipts, outbox retry, alerts | "We're visiting Saturday at 2" in Slack → Dad hears about it at the morning greeting; "Tell Kevin hi" → arrives as a DM |
+| **3b – Knowledge pipeline** | `ingest` / `review` / `kb push`, timeline, knowledge-gap and `remember` loops, reminiscence prompts | A recorded story from Mom becomes approved wiki facts the device can talk about |
 | **4 – Offline brain & hardening** | Connectivity monitor + offline icon, local intent matcher, local LLM fallback, self-test, watchdog, overlay FS, heartbeat | Pull the network cable mid-conversation and it degrades gracefully; with the router unplugged every reminder fires and can be acknowledged and snoozed |
 | **5 – Enclosure & live with it** | Fusion 360 enclosure in `tomoshibi-enclosure` (hw-rev-A), prompt tuning from real use, docs for other builders | Two weeks at my parents' with no intervention; repo is buildable by a stranger |
 
