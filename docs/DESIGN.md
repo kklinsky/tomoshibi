@@ -34,7 +34,7 @@ code, enclosure files and docs on GitHub so other families can build their own.
 |---|---|
 | Raspberry Pi 5 | **8 GB recommended** if running a local fallback LLM; 4 GB is fine for STT/TTS only. Active cooler, official 27 W USB-C PSU, RTC battery. |
 | Jabra Speak 410 (USB) | Full-duplex speakerphone with echo cancellation, good pickup across a room. Appears as a standard USB audio device. **Its touch buttons (mute, volume, call) are easy to hit by accident.** The enclosure should cover mute/call, or the software should detect mute and say "I'm muted, press the button with the line through it." |
-| Arcade button with built-in LED | Input on a GPIO with internal pull-up. **Check the LED voltage:** most are 5 V or 12 V with an internal resistor. GPIO pins are 3.3 V / ~16 mA, so drive the LED through a small N-channel MOSFET or NPN transistor (5 V from the Pi header). Use PWM for a "thinking" pulse. |
+| Arcade button with built-in LED | Input on a GPIO with internal pull-up. **Check the LED voltage:** most are 5 V or 12 V with an internal resistor. GPIO pins are 3.3 V / ~16 mA, so drive the LED through a small N-channel MOSFET or NPN transistor (5 V from the Pi header). The LED is on only while listening (§4), so simple on/off is enough; PWM allows a soft fade. |
 | 2.0" 320×240 IPS TFT, ST7789 (Adafruit EYESPI) | SPI. Connect via an EYESPI adapter (e.g. EYESPI Pi Beret) or jumper wires to SPI0. The microSD slot on the breakout isn't needed. |
 | 3D-printed enclosure (Fusion 360) | Lantern/lamp form to suit the name. Button on top, screen angled toward a seated person, Jabra seated with its grille unobstructed. Weighted base, cable strain relief, ventilation for the Pi. Source `.f3d` + `.step` + `.stl` go in `hardware/enclosure/`. |
 
@@ -50,14 +50,14 @@ The screen's main job is to give Tomoshibi a **friendly animated face**, so it f
 #### Face states
 | State | Face | Button LED |
 |---|---|---|
-| **Idle** | Relaxed, occasional blink, gentle "breathing", eyes drift slowly | off (or dim glow) |
+| **Idle** | Relaxed, occasional blink, gentle "breathing", eyes drift slowly | off |
 | **Listening** | Eyes wide and attentive, slight lean/tilt, mouth closed | **on** |
-| **Thinking / looking up** | Eyes glance up and to the side, small animated "…" | slow pulse |
-| **Speaking** | Mouth moves in time with the voice | on, dim |
+| **Thinking / looking up** | Eyes glance up and to the side, small animated "…" | off |
+| **Speaking** | Mouth moves in time with the voice | off |
 | **Happy** (greetings, good news, family messages) | Smiling eyes | — |
 | **Concerned** (distress, he sounds upset) | Soft, sympathetic eyes; never alarmed-looking | — |
-| **Reminder** | Gentle "ahem" look, then the reminder card (below) | slow pulse |
-| **Sleeping** (quiet hours) | Eyes closed, dimmed screen; wakes with a stretch when the button is pressed | off |
+| **Reminder** | Gentle "ahem" look, then the reminder card (below) | off while speaking, **on** when it starts listening for his reply |
+| **Sleeping** (quiet hours) | Eyes closed, dimmed screen; wakes with a stretch when the button is pressed or a reminder is due | off |
 | **Offline / problem** | Normal face plus a small, clear indicator in the corner; never a sad or broken face | — |
 
 #### Orientation strip
@@ -77,18 +77,77 @@ The face takes the upper ~70% of the screen. A **strip along the bottom always s
 
 ## 4. Interaction model
 
-### Dad
-1. **Press the button** → chime, LED on, the face looks up attentively.
-2. Speak. The turn ends after ~1.5 s of silence (voice-activity detection, tuned generously for slower speech) or on a second press.
-3. LED pulses and the face shows "thinking" → the answer is spoken while the face's mouth moves with the voice.
-4. **Pressing during an answer stops it** and starts listening again (barge-in).
-5. Optional follow-up window: listen for a few seconds after an answer without another press. Off by default; turn on if it suits Dad.
+The device has two primary use cases. Everything else (messages, morning greeting, Mom's tasks) is a variation of one of these.
+
+**The one rule that ties them together: the button light is on exactly when the device is listening.** That holds whether he pressed the button or a reminder opened the mic.
+
+### Use case 1: Dad presses the button and has a conversation
+
+```
+ idle ──press──▶ listening ──silence──▶ thinking ──▶ speaking ──▶ listening (follow-up)
+  ▲                  ▲                                               │
+  │                  └──────────────── he speaks again ◀─────────────┤
+  └───────────── no speech for follow_up_window ─────────────────────┘
+                  ("OK, I'm here whenever you need me." → idle face)
+```
+
+1. **Press the button** → soft chime, **light on**, the face looks up attentively.
+2. He speaks. His turn ends after ~1.5 s of silence (tuned generously for slower speech) or on a second press.
+3. Light off, the face looks "thinking" → the answer is spoken, the mouth moving with the voice.
+4. **Back-and-forth:** after each answer the device goes straight back to listening, light on, for a follow-up. **On by default** (`conversation.follow_up_window: 10s`). He just keeps talking; no press needed.
+5. The conversation ends when he doesn't say anything during the follow-up window, says "thanks, that's all" / "goodbye", or presses the button. It closes warmly and the face goes back to idle.
+6. **Pressing during an answer stops it** and starts listening again (barge-in).
+7. Context carries across turns ("And what about tomorrow?" works), and across the day via the day's rolling memory.
+
+#### What he asks, and where the answer comes from
+| He asks about… | Example | Source |
+|---|---|---|
+| **General knowledge** | "How far away is the moon?" | The LLM's own knowledge |
+| **Current events** | "Who won the World Series?" / "What's in the news?" | `web_search` / news, **if enabled** (§8a); otherwise answers from general knowledge and says it can't check |
+| **Upcoming events in his life** | "What's happening this week?" / "When is Karen coming?" | Events in SQLite, family notes from Slack (§6a, §7) |
+| **His past** | "Where did I work after the Navy?" | `data/wiki/` life story (§6) |
+| **His relatives** | "How many grandkids do I have?" / "Who's Mike again?" | `people.yaml` (+ photo on screen) |
+
+#### Never invent personal facts
+For general knowledge, the model can answer freely. For **his life, his family and his schedule**, it answers **only from the knowledge base**. If something isn't there, it says so kindly and points him to a person: "I don't know that one, Bob. That'd be a great one to ask Carol." A confidently made-up memory is worse than no answer for someone with memory loss.
+- Each unanswered personal question is logged as a **knowledge gap** and included in the daily Slack summary ("Dad asked where he and Mom went on their honeymoon. It's not in the wiki."), so the family can fill it in.
+
+#### Repeated questions
+Answered fully and warmly every time, with no hint that he's asked before. Repeats are counted (not mentioned) for the optional daily summary.
+
+### Use case 2: a reminder wakes the device up
+
+```
+ idle/sleeping ──event due──▶ chime + wake ──▶ speaking (reminder) ──▶ listening (reminder_listen_window)
+                                                                          │
+           ┌──────────────── he responds ◀───────────────────────────────┤
+           ▼                                                              │ no response
+   acknowledged / snoozed / question answered                      retry later (×2) → alert family
+   → conversation (use case 1) or idle
+```
+
+1. **An event comes due** (e.g. 15 minutes before the dentist; the moment for morning pills).
+2. Soft chime, **the face wakes up** (from sleep, with a little stretch) and looks at him. The screen shows the reminder card.
+3. It speaks the reminder in plain words with what he needs to know: "Bob, it's 8 o'clock. Time for your morning pills. They're in the blue box by the sink."
+4. **It automatically enters listening mode, light on,** for `reminders.listen_window` (default **30 s**, longer than the conversation follow-up because he may need to walk over or think).
+5. What he says decides what happens:
+   - **Acknowledges** ("OK", "Thanks, I took them") → marked acknowledged. A button press also counts.
+   - **Snoozes** ("Remind me in ten minutes") → re-fires then. Snooze limits are configurable per event.
+   - **Asks about it** ("What time is the dentist?") → answered, and the conversation continues as in use case 1. The reminder counts as acknowledged.
+   - **Something else entirely** → normal conversation (use case 1). The reminder stays unacknowledged and is gently mentioned again at the end.
+6. **No response within the window** → the light goes off and it goes back to idle. It retries per the event's policy (default: twice, 5 minutes apart). After the last retry it alerts the family in Slack (§6a). The reminder card stays on screen until acknowledged.
+
+#### Edge cases
+- **In the middle of a conversation:** the reminder waits for the end of the current answer, then: "Before I forget, Bob — it's time for your pills."
+- **Several reminders due together:** combined into one announcement.
+- **During quiet hours:** **scheduled reminders still fire** (e.g. 6:30 AM pills); quiet hours only hold family messages and non-urgent alerts. Volume follows a time-of-day setting.
+- **Background noise (TV) during the listen window:** speech that doesn't sound like a reply (low confidence, unrelated) doesn't count as acknowledgment. The window closes as if there was no response.
+
+### Variations on these use cases
+- **Morning greeting** works like use case 2: at a set time or on the first press of the day it says "Good morning, Bob. It's Saturday, October 17th. It's sunny and 58 degrees. Karen is visiting at 2 o'clock." Then it listens.
+- **A family message arriving** (§6a) is delivered at the start of his next conversation, or works like use case 2 if marked urgent.
 
 No wake word in v1. They false-trigger on TV audio and are one more thing to remember. Wake word support (openWakeWord) can be added later as an option, never as a replacement for the button.
-
-**Reminders:** chime, LED slow-pulses, text on screen, spoken message. Press to acknowledge. If there's no acknowledgment it repeats twice over 15 min, then alerts the family in Slack (configurable).
-
-**Morning greeting:** at a set time or on the first press of the day: "Good morning, Bob. It's Saturday, October 17th. It's sunny and 58 degrees. Karen is visiting at 2 o'clock."
 
 ### Mom
 Mom also finds technology hard and **won't use Slack or a phone app**, so the device itself has to be her whole interface. She uses the same button as Dad, and everything she needs must work by voice.
