@@ -36,7 +36,7 @@ code, enclosure files and docs on GitHub so other families can build their own.
 | Jabra Speak 410 (USB) | Full-duplex speakerphone with echo cancellation, good pickup across a room. Appears as a standard USB audio device. **Its touch buttons (mute, volume, call) are easy to hit by accident.** The enclosure should cover mute/call, or the software should detect mute and say "I'm muted, press the button with the line through it." |
 | **30 mm** arcade button with built-in LED | Smaller than first planned, because the top of the enclosure is taken by the Jabra. Placement and making it easy to find are covered under *Enclosure layout* below. Input on a GPIO with internal pull-up. **Check the LED voltage:** most are 5 V or 12 V with an internal resistor. GPIO pins are 3.3 V / ~16 mA, so drive the LED through a small N-channel MOSFET or NPN transistor (5 V from the Pi header). The LED is on only while listening (§4), so simple on/off is enough; PWM allows a soft fade. |
 | 2.0" 320×240 IPS TFT, ST7789 (Adafruit EYESPI) | SPI. Connect via an EYESPI adapter (e.g. EYESPI Pi Beret) or jumper wires to SPI0. The microSD slot on the breakout isn't needed. |
-| 3D-printed enclosure (Fusion 360) | Lantern/lamp form to suit the name. Jabra on top, screen and button on the front (see below). Weighted base, cable strain relief, ventilation for the Pi. Source `.f3d` + `.step` + `.stl` go in `hardware/enclosure/`. |
+| 3D-printed enclosure (Fusion 360) | Lantern/lamp form to suit the name. Jabra on top, screen and button on the front (see below). Weighted base, cable strain relief, ventilation for the Pi. Lives in its own repo, `tomoshibi-enclosure` (§11). |
 
 ### Enclosure layout
 ```
@@ -565,15 +565,32 @@ Builders who aren't around to update by hand can turn `auto_install` on. The dev
 
 ## 11. Open-source packaging
 
+The project is split into two repositories:
+
+| Repo | Contents | License |
+|---|---|---|
+| **`tomoshibi`** (this repo) | All software, config, install/update scripts, docs, **and the electronics**: parts list and wiring, since GPIO pins and part choices are tied to the code | MIT or Apache-2.0 |
+| **`tomoshibi-enclosure`** | 3D-printed enclosure: Fusion 360 source (`.f3d`), **STEP** (so people without Fusion can edit), print-ready **STL/3MF**, print settings, assembly guide with photos | CC BY-SA 4.0 (or CERN-OHL-S) |
+
+Why separate:
+- CAD and mesh files are large binaries that change wholesale on every save. Kept apart (with **Git LFS** for `.f3d`/`.step`/`.stl`/`.3mf`), they don't bloat the code repo's history or slow down the install script's clone.
+- Hardware designs suit a different license than code.
+- Different audiences and release pace: some builders will only print the case, others will remix it around a different speakerphone or screen. The enclosure can also be published on Printables/MakerWorld.
+
+Keeping them in step:
+- The physical part list (Pi 5, Jabra Speak 410, 30 mm button, 2.0" ST7789, mounting hardware) is a **hardware revision**, e.g. `hw-rev-A`, defined in `tomoshibi/hardware/BOM.md`.
+- Each enclosure release says which hardware revision it fits ("Enclosure v1.2 → hw-rev-A"). The code's `BOM.md` links to the matching enclosure release.
+- A change of physical parts bumps the hardware revision in both repos.
+
+### `tomoshibi` layout
 ```
 tomoshibi/
 ├── src/tomoshibi/          # core, audio, stt/, tts/, llm/, display/, tools/, scheduler/
 ├── config/config.example.yaml
 ├── examples/data/          # fictional family
 ├── hardware/
-│   ├── BOM.md              # parts list with links
-│   ├── wiring.md           # button/LED/MOSFET + ST7789 pinout, photos
-│   └── enclosure/          # .f3d, .step, .stl, print settings
+│   ├── BOM.md              # parts list, hardware revision, link to matching enclosure release
+│   └── wiring.md           # button/LED/MOSFET + ST7789 pinout, photos
 ├── scripts/
 │   ├── install.sh          # one-command setup on fresh Raspberry Pi OS (§10a)
 │   └── uninstall.sh
@@ -584,6 +601,16 @@ tomoshibi/
 ├── CHANGELOG.md
 ├── docs/                   # DESIGN.md, setup guide for non-technical builders, caregiver guide
 └── tests/
+```
+
+### `tomoshibi-enclosure` layout
+```
+tomoshibi-enclosure/
+├── source/            # tomoshibi-enclosure.f3d, .step exports
+├── print/             # STL/3MF per part: body, top recess + Jabra cover ring, front bezel, button bezel, base, back panel
+├── docs/              # print settings (material, infill, supports), assembly guide, photos
+├── .gitattributes     # Git LFS for .f3d .step .stl .3mf
+└── README.md          # which hardware revision it fits, link back to tomoshibi
 ```
 
 - `.gitignore` blocks `data/`, `*.db`, secrets and recordings. A pre-commit check refuses commits containing files from `data/`.
@@ -600,7 +627,7 @@ tomoshibi/
 | **3 – Remind** | SQLite events, scheduler, acknowledgments, morning greeting, caregiver edit path | Reminders fire with Wi-Fi unplugged; Mom adds one without help |
 | **3a – Family Slack** | Slack app (Socket Mode), allowlist, outbound messages with confirmation, inbound classification (message / event / note), inbox delivery + receipts, outbox retry, alerts | "We're visiting Saturday at 2" in Slack → Dad hears about it at the morning greeting; "Tell Kevin hi" → arrives as a DM |
 | **4 – Offline brain & hardening** | Connectivity monitor + offline icon, local intent matcher, local LLM fallback, self-test, watchdog, overlay FS, heartbeat | Pull the network cable mid-conversation and it degrades gracefully; with the router unplugged every reminder fires and can be acknowledged and snoozed |
-| **5 – Enclosure & live with it** | Fusion 360 enclosure, prompt tuning from real use, docs for other builders | Two weeks at my parents' with no intervention; repo is buildable by a stranger |
+| **5 – Enclosure & live with it** | Fusion 360 enclosure in `tomoshibi-enclosure` (hw-rev-A), prompt tuning from real use, docs for other builders | Two weeks at my parents' with no intervention; repo is buildable by a stranger |
 
 ## 13. Open questions
 
