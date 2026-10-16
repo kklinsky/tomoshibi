@@ -1,6 +1,6 @@
 # Tomoshibi — Design
 
-Status: draft v0.2 (2026-10-16)
+Status: draft v0.3 (2026-10-16)
 
 ## 1. Goals
 
@@ -57,16 +57,21 @@ The screen supports the voice interaction. It never needs to be touched or navig
 
 No wake word in v1. They false-trigger on TV audio and are one more thing to remember. Wake word support (openWakeWord) can be added later as an option, never as a replacement for the button.
 
-**Reminders:** chime, LED slow-pulses, text on screen, spoken message. Press to acknowledge. If there's no acknowledgment it repeats twice over 15 min, then notifies Mom (configurable).
+**Reminders:** chime, LED slow-pulses, text on screen, spoken message. Press to acknowledge. If there's no acknowledgment it repeats twice over 15 min, then alerts the family in Slack (configurable).
 
 **Morning greeting:** at a set time or on the first press of the day: "Good morning, Bob. It's Saturday, October 17th. It's sunny and 58 degrees. Karen is visiting at 2 o'clock."
 
 ### Mom
-- She uses the **same button** for asking questions and getting help.
-- **Changing events/reminders** needs a guard so a confused moment can't cancel his pills. Options (decide during Phase 3):
-  - a. Edits from **her phone** only, through the family Slack (§6a) or a tiny web page on the LAN, or
-  - b. Voice edits allowed, but they need spoken confirmation and are reported to Mom's phone, or
-  - c. A caregiver gesture (press-and-hold 3 s) that unlocks editing tools for one session.
+Mom also finds technology hard and **won't use Slack or a phone app**, so the device itself has to be her whole interface. She uses the same button as Dad, and everything she needs must work by voice.
+
+- **Asking and getting help:** same as Dad.
+- **Passing things to the family:** "Tell Kevin the doctor moved Dad's appointment to Thursday." Same `send_message` flow as Dad's, attributed *"From Mom"*.
+- **Changing events/reminders:** **undecided.** It needs a guard so a confused moment of Dad's can't cancel his pills. Candidates:
+  - a. **Family proxy:** Mom calls Kevin or his sister, and they make the change in Slack. Simplest for her, but it depends on us.
+  - b. **Voice edits with a safety net:** anyone can add or change events by voice. The device reads back the change and asks for confirmation, then posts it to `#tomoshibi` with *Undo*, so Kevin or his sister can catch mistakes. Medication reminders could be marked *protected* (changeable only from Slack).
+  - c. **Caregiver gesture:** press-and-hold for 3 s unlocks editing tools for one session. Only works if Mom can remember the gesture.
+  - Current lean: **b**, plus protected medication reminders, with a as the fallback for anything protected. Try it with Mom before deciding.
+- **Speaking to the right person:** the device can't reliably tell Mom's voice from Dad's, so it asks when it matters ("Is this Carol or Bob?") and never relies on voice as a permission check.
 
 Voice speaker identification isn't reliable enough to be the permission boundary.
 
@@ -205,7 +210,7 @@ A private, family-only Slack workspace is the link between the device and the fa
 | `#tomoshibi` (private channel) | Shared family feed: info for the device, alerts, delivery receipts, optional daily summary |
 | DM with the bot | Private messages to Dad and private info; replies from Dad to that person |
 
-### Outbound: Dad → family
+### Outbound: Dad or Mom → family
 - "Tell Kevin the Tigers won." → the LLM calls `send_message(contact="Kevin", text=...)` → the device reads back "I'll send Kevin: 'The Tigers won.' OK?" → on yes, it posts a DM to Kevin, attributed: *"From Dad: The Tigers won."*
 - Messages are paraphrased only enough to be clear, never embellished. The confirmation step catches transcription mistakes.
 - Alerts (distress, missed reminder, scam mention, device offline/back online) post to `#tomoshibi` and @-mention the configured responders.
@@ -215,7 +220,7 @@ Every allowlisted message is classified by the LLM (using the tool schema, so it
 
 | Type | Example | What happens |
 |---|---|---|
-| **Message for Dad** | "Tell Dad I love him and I'll call Sunday." | Queued in the inbox. Delivered at the next button press ("You have a message from Kevin…"), or announced with a gentle chime if marked urgent / outside quiet hours. Screen shows the sender's photo. The thread gets a ✅ *"Dad heard this at 3:12 PM."* |
+| **Message for Dad** (or Mom) | "Tell Dad I love him and I'll call Sunday." | Queued in the inbox. Delivered at the next button press ("You have a message from Kevin…"), or announced with a gentle chime if marked urgent. Held during quiet hours. Spoken in the AI's own words (see below). Screen shows the sender's photo. The thread gets a ✅ *"Dad heard this at 3:12 PM."* |
 | **Event** | "Sis and I are visiting Saturday around 2." | Becomes an event in SQLite, reminders included. The bot replies in thread with what it understood ("Added: Kevin & Karen visit, Sat Oct 24, 2:00 PM") and offers *Undo*. |
 | **Family note** (context) | "Dad's knee has been bothering him, ask how it's feeling." / "The Lions play tonight." | Stored as a note with an expiry (default 7 days, or the date it refers to). Active notes go into the system prompt so the device can naturally bring them up. |
 | **Question about Dad** | "How's Dad doing today?" | Replies from local data: reminders acknowledged, messages, a short summary if summaries are enabled. Never raw transcripts. |
@@ -223,10 +228,23 @@ Every allowlisted message is classified by the LLM (using the tool schema, so it
 
 When it isn't sure of the type or date, it asks back in the thread instead of guessing.
 
+### How messages are spoken to Dad
+Messages are **interpreted by the AI before they're spoken**, not read word for word. Family messages are often written in shorthand ("Visiting Sat ~2, bringing the kids, don't let him make lunch"), which would confuse him if read verbatim.
+- The model rewrites the message into short, warm, plain sentences: who it's from, what it means for him, and when. "Kevin sent you a message. He and Karen are coming to visit this Saturday around 2 in the afternoon, and they're bringing the kids."
+- **Keep the meaning, never add to it.** No invented details, promises or feelings the sender didn't express. Uncertain dates are resolved against the calendar ("Saturday, October 24th"), or left vague instead of guessed.
+- Parts meant for Mom or about his care ("don't let him make lunch") are **not spoken to Dad**. They become a family note, or are held for Mom: "Carol, Kevin left a message for you, too."
+- The original text and the spoken version are both saved, and the spoken version is posted in the Slack thread so the sender can see how it came across.
+- He can ask "What did Kevin say?" again at any time that day and hear it again, as patiently as the first time.
+
+### Quiet hours: midnight to 7 AM
+Configurable (`quiet_hours: { start: "00:00", end: "07:00" }`). During quiet hours:
+- **On the device:** no announcements or chimes for inbound messages. They wait until morning and are woven into the morning greeting. If Dad presses the button during the night it works normally, including telling him about waiting messages.
+- **In Slack:** non-urgent alerts (missed reminder acknowledgment, device offline/back online, low-priority notices) are batched into one summary posted at 7 AM, so phones don't buzz overnight.
+- **Never held:** distress/emergency alerts, and anything a family member marks urgent (e.g. "urgent:" prefix or a 🚨 reaction). These go immediately, any time.
+
 ### Reliability
 - Outbound messages go into a SQLite **outbox** first and retry until Slack confirms, so nothing is lost while offline. Dad hears "I'll send it as soon as I'm connected again."
 - Slack retries missed Socket Mode events only briefly, so on reconnect the device catches up by reading channel/DM history since the last processed message timestamp.
-- Quiet hours (e.g. 9 PM–8 AM): inbound messages wait until morning unless marked urgent.
 
 ### Privacy
 - Slack stores whatever is posted. Only messages, alerts and opt-in summaries go there, never audio or full conversation logs.
@@ -263,7 +281,7 @@ Tools are defined once in the neutral schema and every provider adapter exposes 
 - Rolling memory for the day plus a nightly summary, so it can say "you mentioned the Tigers game yesterday."
 - **Distress or emergency phrases** ("I fell", "I can't breathe"): tell him calmly to call 911, notify family immediately. Say in the README that it doesn't replace a medical alert pendant.
 - **Medication:** only repeats what the family configured; never advises dosing.
-- **Scams:** never discusses bank/card/SSN details; if he mentions a caller asking for money or gift cards, it gently warns and notifies Mom.
+- **Scams:** never discusses bank/card/SSN details; if he mentions a caller asking for money or gift cards, it gently warns him and alerts the family in Slack.
 - **Privacy:** conversation logs stay on the device. Family gets optional daily summaries (e.g. "asked the date 9 times, seemed worried about the car"), which can also help his doctor. Talk this through with both parents first.
 
 ## 10. Reliability & operations
@@ -313,9 +331,8 @@ tomoshibi/
 
 - Which Pi 5 RAM size do I have? (Decides whether the local LLM fallback is realistic.)
 - Dad's hearing: hearing aids? Drives voice choice, speed and volume.
-- Will Mom use Slack on her phone? If not, she needs a simpler path (SMS bridge, or voice edits per §4b) while my sister and I use Slack.
-- Who gets which alerts (distress vs missed reminder vs offline), and what are the quiet hours?
-- Should inbound messages be read in the sender's words, or can the device rephrase them gently for clarity?
+- How does Mom change events and reminders without Slack (§4: family proxy, voice edits with safety net, or caregiver gesture)? Test the candidates with her.
+- Which alerts go to whom (distress vs missed reminder vs offline)? Quiet hours are decided: midnight–7 AM (§6a).
 - Which caregiver edit guard (§4 a/b/c)?
 - Arcade button LED voltage (5 V vs 12 V)?
 - Names/wording: what Dad calls the device, and how the family wants sensitive topics (e.g. deceased relatives) handled.
