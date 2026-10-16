@@ -58,7 +58,7 @@ The screen's main job is to give Tomoshibi a **friendly animated face**, so it f
 | **Concerned** (distress, he sounds upset) | Soft, sympathetic eyes; never alarmed-looking | — |
 | **Reminder** | Gentle "ahem" look, then the reminder card (below) | off while speaking, **on** when it starts listening for his reply |
 | **Sleeping** (quiet hours) | Eyes closed, dimmed screen; wakes with a stretch when the button is pressed or a reminder is due | off |
-| **Offline / problem** | Normal face plus a small, clear indicator in the corner; never a sad or broken face | — |
+| **Offline / problem** | Normal face; an amber offline icon in the orientation strip (§5); never a sad or broken face | — |
 
 #### Orientation strip
 The face takes the upper ~70% of the screen. A **strip along the bottom always shows the day and time of day**, e.g. "Saturday afternoon · 2:15". The day/date clock is a well-known orientation aid, so it stays visible under the face instead of being lost to it. A press-free "full clock" (large day, date, time) takes over the whole screen for a few seconds after the morning greeting, or when he asks "what day is it?".
@@ -244,6 +244,53 @@ class LLMProvider(Protocol):
 | News, weather, web search | ✓ | ✗, explained in plain words; last known weather cached |
 
 A 1–3 B model under llama.cpp/Ollama on a Pi 5 manages a few to ~10 tokens/s. That's acceptable for short answers. It's optional and needs the 8 GB Pi.
+
+### Detecting loss of connectivity
+A `ConnectivityMonitor` runs in the background and publishes state changes on the event bus (the display, conversation and Slack components all subscribe):
+
+| State | Meaning | Detected by |
+|---|---|---|
+| `online` | Everything reachable | — |
+| `no_wifi` | Not connected to the network | No route / no IP address |
+| `no_internet` | On Wi-Fi, but the internet is unreachable | DNS lookup + HTTPS request to a known endpoint fail |
+| `ai_unavailable` | Internet works, but the LLM provider is down or rejecting requests (outage, bad key, out of credit) | Provider health call or repeated API errors |
+
+- Checks every 30 s, and immediately whenever an API call fails.
+- **Hysteresis** so the screen doesn't flicker: 2 consecutive failures to go offline, 1 success to come back.
+- `ai_unavailable` switches to the fallback provider (§5) if one is configured. If the fallback works, the device is still "online" from Dad's point of view, and only the family is told (in Slack).
+
+### Showing it on the display
+- **A small icon at the right end of the orientation strip** (§3): a Wi-Fi symbol with a line through it, in soft amber. Small enough not to worry Dad, but obvious to Mom or a visiting family member who knows to look.
+- Below the icon, the strip shows the word **"Offline"** for the first minute after the change, then the icon alone.
+- **The face stays normal.** No sad, broken or confused expression: the device is still working, and a worried-looking face could upset him.
+- Distinct icons for `no_wifi` vs `no_internet`/`ai_unavailable` help whoever is troubleshooting ("is it the Wi-Fi or the internet?"). Optionally, in the setup wizard or on a long press of the button, the screen shows a plain-language status card: "Wi-Fi: connected · Internet: not reachable since 2:14 PM".
+- The **button LED never indicates connectivity.** It keeps one meaning: on = listening.
+- When the connection comes back, the icon disappears. Nothing is said to Dad.
+
+### What he hears
+- **Starting a conversation while offline:** at the start of a conversation (not every turn): "Just so you know, I can't reach the internet right now, so I can't look things up, but I can still help with your schedule and reminders." Then it carries on with what it can do (local LLM if available, otherwise the local skills below).
+- Without a local LLM, offline speech understanding uses a small **local intent matcher** for the essentials: what time/day is it, what's on today/tomorrow, who is <person>, acknowledge, snooze, repeat that. Anything else gets a kind "I can't answer that while I'm offline. Carol might know."
+- **The internet dropping mid-conversation:** finishes or abandons the current answer gracefully ("Sorry, I've lost my connection") instead of going silent.
+
+### Reminders always work offline
+Reminders must never depend on the internet. Everything in the reminder path is local:
+
+| Step | How it stays local |
+|---|---|
+| Schedule | Events and recurrence rules are in SQLite; the scheduler runs on the device |
+| Time | RTC battery keeps time through power cuts with no network; NTP corrects it when online |
+| What's spoken | Each event stores its **own reminder text** (written by the family or generated when the event was created online). The LLM may phrase it more naturally when online, but offline it speaks the stored text unchanged |
+| Speech | Piper TTS on the device |
+| Listening for his reply | Local STT + the local intent matcher for "OK" / "remind me in 10 minutes" / "what time is it?" |
+| Acknowledgment & retries | Recorded in SQLite; retry policy runs locally |
+| Family alert for a missed reminder | Queued in the **outbox** and sent as soon as the connection returns, marked with the original time ("8:15 AM: Dad didn't respond to his pill reminder") |
+
+Because a missed-reminder alert can't reach the family while offline, after the last retry the device also **says it out loud for anyone nearby**: "Carol, Bob hasn't answered his 8 o'clock pill reminder."
+
+Other offline details:
+- **Morning greeting** still happens with date, day and today's events. It skips the weather, or uses the cached forecast ("Earlier the forecast said…").
+- **Events and messages sent from Slack while offline** arrive when it reconnects (Slack catch-up, §6a). Family members see no ✅ until then, and the bot posts how long it was offline.
+- A reminder test is part of the release checklist and the Phase 4 done-criteria: **unplug the router, and every reminder still fires, is spoken, and can be acknowledged and snoozed.**
 
 ## 6. Personal knowledge base
 
@@ -529,7 +576,7 @@ tomoshibi/
 | **2 – Talk** | LLM provider interface + Anthropic adapter, profile/people/wiki context, streaming TTS, face states + lip sync, barge-in | Natural conversation, ≤ 3 s to first audio; switching to OpenAI is a config change |
 | **3 – Remind** | SQLite events, scheduler, acknowledgments, morning greeting, caregiver edit path | Reminders fire with Wi-Fi unplugged; Mom adds one without help |
 | **3a – Family Slack** | Slack app (Socket Mode), allowlist, outbound messages with confirmation, inbound classification (message / event / note), inbox delivery + receipts, outbox retry, alerts | "We're visiting Saturday at 2" in Slack → Dad hears about it at the morning greeting; "Tell Kevin hi" → arrives as a DM |
-| **4 – Offline brain & hardening** | Local LLM fallback, self-test, watchdog, overlay FS, heartbeat | Pull the network cable mid-conversation and it degrades gracefully |
+| **4 – Offline brain & hardening** | Connectivity monitor + offline icon, local intent matcher, local LLM fallback, self-test, watchdog, overlay FS, heartbeat | Pull the network cable mid-conversation and it degrades gracefully; with the router unplugged every reminder fires and can be acknowledged and snoozed |
 | **5 – Enclosure & live with it** | Fusion 360 enclosure, prompt tuning from real use, docs for other builders | Two weeks at my parents' with no intervention; repo is buildable by a stranger |
 
 ## 13. Open questions
