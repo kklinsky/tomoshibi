@@ -30,6 +30,8 @@ code, enclosure files and docs on GitHub so other families can build their own.
 
 ## 3. Hardware
 
+This section covers the core parts and design decisions. The full parts list (power, storage, connectors, enclosure hardware, optional sensors) is in [`hardware/BOM.md`](../hardware/BOM.md).
+
 | Part | Notes |
 |---|---|
 | Raspberry Pi 5 | **8 GB recommended** if running a local fallback LLM; 4 GB is fine for STT/TTS only. Active cooler, official 27 W USB-C PSU, RTC battery. |
