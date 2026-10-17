@@ -533,7 +533,7 @@ Every allowlisted message is classified by the LLM (using the tool schema, so it
 | **Event** | "Sis and I are visiting Saturday around 2." | Becomes an event in SQLite, reminders included. The bot replies in thread with what it understood ("Added: David & Karen visit, Sat Oct 24, 2:00 PM") and offers *Undo*. |
 | **Family note** (context) | "Dad's knee has been bothering him, ask how it's feeling." / "The Lions play tonight." | Stored as a note with an expiry (default 7 days, or the date it refers to). Active notes go into the system prompt so the device can naturally bring them up. |
 | **Question about Dad** | "How's Dad doing today?" | Replies from local data: reminders acknowledged, messages, a short summary if summaries are enabled. Never raw transcripts. |
-| **Command** | `/tomoshibi status`, `notes`, `cancel <event>`, `remember <fact>` | Device health, active notes, event management (caregiver role), adding a pending knowledge fact (§6.3). |
+| **Command** | `/tomoshibi status`, `notes`, `cancel <event>`, `remember <fact>`, `introduce` | Device health, active notes, event management (caregiver role), adding a pending knowledge fact (§6.3), and having the device introduce itself to him right now (§9b). |
 | **Answer to a knowledge-gap question** | Thread reply to *"Dad asked where he and Carol honeymooned…"* | Becomes a pending fact; approved with ✅ before use (§6.3). |
 
 When it isn't sure of the type or date, it asks back in the thread instead of guessing.
@@ -723,7 +723,7 @@ Because the capability and privacy lines come from config, they can't drift from
 ### Introductions
 | When | What happens |
 |---|---|
-| **First meeting** | Started by the family during setup (`tomoshibi introduce`, or from the setup wizard) while they're sitting with the person. A short, warm script: its name, who made it and why, how to use the button, and that it's happy to be asked anything, any number of times. It ends by asking a gentle question about them |
+| **Introduce yourself (on request, any time)** | There is no one-time "first meeting": the person may not remember it. Instead, anyone can ask for the **full introduction** whenever it would help: "Tomo, introduce yourself", "Tell Bob who you are", "What are you for?". The family can also start it remotely with `/tomoshibi introduce` in Slack or `tomoshibi introduce` on the device (e.g. while on the phone with him). It covers, in under 30 seconds: its name, who made it and why, how to use the button, two or three things it can help with, and that it's happy to be asked anything, any number of times. It ends with a gentle question about him. The wording stays the same each time, so it grows familiar |
 | **"Who are you?" / "What is this?"** | The **same short answer every time**, built from the template: *"I'm {name}, a helper {made_by} made for you. Press my button whenever you want to talk."* Familiar wording helps. Never "I told you before" |
 | **Morning greeting** | Opens with its name: *"Good morning, {person}, it's {name}."* A daily, natural reminder of who it is |
 | **He seems unsure** what it is or why it's talking | It re-introduces itself briefly, without pointing out that he forgot |

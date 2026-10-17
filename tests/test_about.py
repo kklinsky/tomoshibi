@@ -22,6 +22,7 @@ def test_fills_names_from_family_files():
     text = render()
     assert "I'm Tomo, a helper your son David made for you." in text
     assert "David made you for Bob" in text
+    assert "## Your full introduction" in text and "Hello, Bob. I'm Tomo." in text
     assert "Helping Carol" in text
     assert "{" not in text and "}" not in text, "unfilled placeholder"
 
