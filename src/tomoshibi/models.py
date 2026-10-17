@@ -7,6 +7,9 @@ from pathlib import Path
 
 from tomoshibi import paths
 
+# Engine used when a models.lock entry does not name one.
+DEFAULT_ENGINE = {"stt": "whisper", "tts": "piper"}
+
 
 @dataclass(frozen=True)
 class ModelSpec:
@@ -15,8 +18,9 @@ class ModelSpec:
     repo: str
     revision: str
     files: tuple[str, ...]
-    engine: str = "whisper"  # which STT class reads this model (stt kind only)
+    engine: str = "whisper"  # which STT/TTS class reads this model; see DEFAULT_ENGINE
     arch: str | None = None  # engine-specific model architecture, e.g. Moonshine's "base"
+    voice: str | None = None  # default voice for multi-voice TTS models, e.g. Kokoro's
 
     def local_dir(self, models_dir: Path | None = None) -> Path:
         return (models_dir or paths.models_dir()) / self.name
@@ -41,8 +45,9 @@ def load_lock(path: Path) -> list[ModelSpec]:
             repo=entry["repo"],
             revision=entry["revision"],
             files=tuple(entry["files"]),
-            engine=entry.get("engine", "whisper"),
+            engine=entry.get("engine", DEFAULT_ENGINE.get(entry["kind"], "whisper")),
             arch=entry.get("arch"),
+            voice=entry.get("voice"),
         )
         for name, entry in data.get("models", {}).items()
     ]

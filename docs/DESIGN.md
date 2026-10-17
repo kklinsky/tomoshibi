@@ -224,7 +224,7 @@ Every replaceable piece sits behind a small interface and is chosen in `config.y
 | Interface | Default | Alternatives |
 |---|---|---|
 | `SpeechToText` | **faster-whisper** `base.en`/`small.en` int8 (CPU) | **Moonshine** (built for edge devices, faster on short clips), Vosk (streaming, lower accuracy), whisper.cpp |
-| `TextToSpeech` | **Piper** (fast on a Pi 5, many voices) | Kokoro-82M (more natural, slower; benchmark on Pi 5) |
+| `TextToSpeech` | **Piper** (fast on a Pi 5, many voices) | Kokoro-82M via kokoro-onnx (more natural; ~1.1-1.9 s per sentence, RTF ~0.85 on a Pi 5, int8) |
 | `VoiceActivity` | Silero VAD (ONNX) | WebRTC VAD |
 | `LLMProvider` | Anthropic Claude | OpenAI, Ollama (local), any OpenAI-compatible endpoint |
 | `Display` | ST7789 via `luma.lcd` or Adafruit `rgb_display` | Null display (headless builds) |

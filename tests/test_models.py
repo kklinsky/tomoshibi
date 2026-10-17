@@ -31,3 +31,13 @@ def test_files_dir_is_the_common_parent(tmp_path):
     assert spec.files_dir(tmp_path) == tmp_path / spec.name / "model/base-en/quantized/base-en"
     whisper = models.find(models.load_lock(LOCK), "whisper-base-en")
     assert whisper.files_dir(tmp_path) == whisper.local_dir(tmp_path)
+
+
+def test_tts_entries_name_a_known_engine():
+    specs = models.load_lock(LOCK)
+    assert models.first_of_kind(specs, "tts").engine == "piper", "Piper stays the default"
+    for spec in specs:
+        if spec.kind == "tts":
+            assert spec.engine in ("piper", "kokoro"), spec.name
+            if spec.engine == "kokoro":
+                assert f"voices/{spec.voice}.bin" in spec.files, f"{spec.name} needs its voice"

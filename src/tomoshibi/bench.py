@@ -1,4 +1,5 @@
-"""Speech pipeline benchmark: Piper speaks each phrase, each STT model transcribes it back.
+"""Speech pipeline benchmark: each TTS model speaks each phrase, and each STT model
+transcribes the first TTS model's clips back.
 
 Synthetic speech is far cleaner than a real older voice, so the accuracy here is a
 best case. This checks that the pipeline works and how fast it is on the Pi; the real
@@ -12,7 +13,7 @@ from pathlib import Path
 
 from tomoshibi import models
 from tomoshibi import stt as stt_mod
-from tomoshibi.tts import PiperTTS
+from tomoshibi import tts as tts_mod
 
 PHRASES = [
     "What day is it today?",
@@ -49,25 +50,38 @@ def _wav_seconds(path: Path) -> float:
         return w.getnframes() / w.getframerate()
 
 
-def run(specs: list[models.ModelSpec], stt_names: list[str] | None = None) -> None:
-    tts_spec = models.first_of_kind(specs, "tts")
+def run(
+    specs: list[models.ModelSpec],
+    stt_names: list[str] | None = None,
+    tts_names: list[str] | None = None,
+) -> None:
+    tts_specs = [s for s in specs if s.kind == "tts" and (not tts_names or s.name in tts_names)]
     stt_specs = [s for s in specs if s.kind == "stt" and (not stt_names or s.name in stt_names)]
-
-    t0 = time.perf_counter()
-    tts = PiperTTS(models.piper_model_path(tts_spec))
-    print(f"Loaded {tts_spec.name} in {time.perf_counter() - t0:.1f} s")
 
     with tempfile.TemporaryDirectory() as tmp:
         clips = []
-        print(f"\nText-to-speech ({tts_spec.name})")
-        print(f"{'synth s':>8} {'audio s':>8} {'RTF':>6}  phrase")
-        for i, phrase in enumerate(PHRASES):
-            wav = Path(tmp) / f"{i}.wav"
+        for n, tts_spec in enumerate(tts_specs):
             t0 = time.perf_counter()
-            tts.synthesize_to_wav(phrase, wav)
-            took, audio = time.perf_counter() - t0, _wav_seconds(wav)
-            clips.append((phrase, wav, audio))
-            print(f"{took:8.2f} {audio:8.2f} {took / audio:6.2f}  {phrase}")
+            tts = tts_mod.load(tts_spec)
+            label = f"{tts_spec.name}, voice {tts_spec.voice}" if tts_spec.voice else tts_spec.name
+            print(f"\nText-to-speech ({label}, loaded in {time.perf_counter() - t0:.1f} s)")
+            print(f"{'synth s':>8} {'audio s':>8} {'RTF':>6}  phrase")
+            total_time = total_audio = 0.0
+            for i, phrase in enumerate(PHRASES):
+                wav = Path(tmp) / f"{n}-{i}.wav"
+                t0 = time.perf_counter()
+                tts.synthesize_to_wav(phrase, wav)
+                took, audio = time.perf_counter() - t0, _wav_seconds(wav)
+                total_time, total_audio = total_time + took, total_audio + audio
+                if n == 0:
+                    # STT is measured on the first (default) voice's clips.
+                    clips.append((phrase, wav, audio))
+                print(f"{took:8.2f} {audio:8.2f} {took / audio:6.2f}  {phrase}")
+            print(
+                f"{'avg':>8} {'':>8} {total_time / total_audio:6.2f}"
+                f"  ({total_time / len(PHRASES):.2f} s per phrase)"
+            )
+            del tts
 
         for spec in stt_specs:
             t0 = time.perf_counter()

@@ -24,6 +24,8 @@ def main(argv: list[str] | None = None) -> int:
     say.add_argument("text")
     say.add_argument("--out", type=Path, default=Path("say.wav"))
     say.add_argument("--speed", type=float, default=1.0, help="length scale; >1.0 is slower")
+    say.add_argument("--model", help="TTS model name from models.lock")
+    say.add_argument("--voice", help="voice within a multi-voice model, e.g. Kokoro's am_michael")
 
     transcribe = sub.add_parser("transcribe", help="transcribe a WAV file with local STT")
     transcribe.add_argument("wav", type=Path)
@@ -33,6 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     bench_sub = bench.add_subparsers(dest="bench_command", required=True)
     bench_speech = bench_sub.add_parser("speech", help="TTS -> STT round trip with timings")
     bench_speech.add_argument("--stt", action="append", help="STT model name (repeatable)")
+    bench_speech.add_argument("--tts", action="append", help="TTS model name (repeatable)")
 
     args = parser.parse_args(argv)
     lock_path = args.lock or paths.default_models_lock()
@@ -60,14 +63,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "say":
-        from tomoshibi.tts import PiperTTS
+        from tomoshibi import tts
 
-        spec = models.first_of_kind(specs, "tts")
+        spec = models.find(specs, args.model) if args.model else models.first_of_kind(specs, "tts")
         t0 = time.perf_counter()
-        PiperTTS(models.piper_model_path(spec), length_scale=args.speed).synthesize_to_wav(
-            args.text, args.out
+        engine = tts.load(spec, length_scale=args.speed, voice=args.voice)
+        loaded = time.perf_counter()
+        engine.synthesize_to_wav(args.text, args.out)
+        print(
+            f"Wrote {args.out} with {spec.name} in {time.perf_counter() - loaded:.2f} s"
+            f" (model load {loaded - t0:.2f} s)"
         )
-        print(f"Wrote {args.out} in {time.perf_counter() - t0:.2f} s")
         return 0
 
     if args.command == "transcribe":
@@ -83,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "bench":
         from tomoshibi import bench as bench_mod
 
-        bench_mod.run(specs, stt_names=args.stt)
+        bench_mod.run(specs, stt_names=args.stt, tts_names=args.tts)
         return 0
 
     parser.error(f"unknown command {args.command}")
