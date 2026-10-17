@@ -193,10 +193,29 @@ Please put everything in one folder named `tomoshibi` (zip it if sending by emai
    that **listening** is unmistakable at actual size from across the room.
 3. Split into **parts** and export the checklist files.
 4. Add **expressions** and **transitions**.
-5. We'll load it into a desktop previewer that animates the parts, so you can see it move and
-   adjust before it goes on the real device.
+5. Check your work in the **Face Previewer** (below) as you go.
 
-## 8. Credit and sharing
+## 8. Face Previewer
+
+The **Face Previewer** animates your parts on a copy of the device's screen, so you can see
+the face move long before the device exists. Open it in any web browser:
+
+- Use the link the family shares with you, **or**
+- Download [`tools/face-previewer/index.html`](../tools/face-previewer/index.html) and open it
+  in Chrome, Edge or Firefox. It works offline.
+
+Then:
+1. Click **Choose your tomoshibi folder** (or drag your PNGs onto the page). Parts you haven't
+   made yet are filled in with a simple sample face, so you can test one part at a time.
+2. Press **Conversation**, **Reminder** or **Night and morning** to watch a full scene, or click
+   individual states, expressions and transitions.
+3. Use **Real size** (set it up once with a bank card) and step back across the room.
+4. The **Check your files** list flags wrong sizes, missing transparency and misspelled names.
+5. **Make preview sheet** builds the `preview_states.png` to include with your delivery.
+
+Your images never leave your computer.
+
+## 9. Credit and sharing
 
 Tomoshibi is an open-source project on GitHub so other families can build one. The default
 face may be included in that public project. We'll **credit you by name** (or a handle you
