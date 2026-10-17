@@ -66,6 +66,8 @@ This section covers the core parts and design decisions. The full parts list (po
 ### Screen: an animated face
 The screen's main job is to give Tomoshibi a **friendly animated face**, so it feels like someone to talk to rather than a gadget. It never needs to be touched or navigated.
 
+The artist-facing spec (states, expressions, transitions, the parts checklist and file names) is in [`face-animation-brief.md`](face-animation-brief.md).
+
 #### Face design guidelines
 - **Simple and cartoon-like, not realistic.** Two large eyes and a simple mouth (think a friendly robot or a lantern character). Realistic human faces can be confusing or unsettling for someone with dementia, who may believe a real person is inside the device.
 - **Calm.** Slow, smooth motion; no sudden jumps, flashing or fast colors. Soft warm palette on a dark background (less glare, readable across a room).
