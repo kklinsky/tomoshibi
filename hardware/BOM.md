@@ -86,8 +86,8 @@ Wiring is documented in [wiring.md](wiring.md).
 - [x] Button: Adafruit #3491 family. LED is 5 V / ~10 mA with built-in resistor; 0.11" terminals
 - [ ] Button color: clear vs yellow
 - [ ] Identify the LED's + and − terminals on the actual button (check the markings, or test with 5 V)
-- [ ] Decide storage: high-endurance microSD or NVMe
-- [ ] Decide Pi 5 RAM: 4 GB or 8 GB
+- [ ] Decide storage: high-endurance microSD or NVMe (bench unit currently runs from a 128 GB microSD)
+- [x] Pi 5 RAM: **8 GB** (bench unit, Rev 1.1). Local fallback LLM is an option
 - [ ] Find a panel-mount USB-C extension that's genuinely rated for 5 A, or use a grommet
 - [ ] Decide on the presence and light sensors before the enclosure design is finalized (they need openings)
 - [ ] Final quantities for inserts and screws once the enclosure is designed
