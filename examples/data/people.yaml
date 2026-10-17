@@ -1,0 +1,35 @@
+people:
+  - id: bob
+    name: Robert "Bob"
+    is_subject: true
+    born: 1944-03-12
+
+  - id: carol
+    name: Carol
+    called: [Carol, "your wife"]
+    born: 1946-07-02
+    spouse: bob
+    married: 1967-06-17
+
+  - id: karen
+    name: Karen Smith
+    called: [Karen]
+    born: 1970-09-30
+    parents: [bob, carol]
+    spouse: mike
+    lives: Columbus, OH
+    notes: Visits most Saturdays. Teaches 4th grade.
+
+  - id: mike
+    name: Mike Smith
+    spouse: karen
+
+  - id: emma
+    name: Emma Smith
+    born: 2014-05-21
+    parents: [karen, mike]
+    notes: Plays soccer. Loves drawing horses.
+
+  - id: frank
+    name: Frank Russo
+    relationship_override: "his best friend from the Navy"

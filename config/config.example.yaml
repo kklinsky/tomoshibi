@@ -1,0 +1,36 @@
+# Tomoshibi configuration. Copied to /etc/tomoshibi/config.yaml by install.sh.
+# Secrets (API keys, Slack tokens) go in /etc/tomoshibi/secrets.env, not here.
+# Most settings are not used yet; they mirror docs/DESIGN.md so the shape is settled early.
+
+speech:
+  stt_model: whisper-base-en          # name from models.lock
+  tts_model: piper-en_US-lessac-medium
+  tts_speed: 1.1                      # length scale; >1.0 is slower
+
+conversation:
+  follow_up_window: 10s
+  end_of_speech_silence: 1.5s
+
+reminders:
+  listen_window: 30s
+  retries: 2
+  retry_interval: 5m
+
+quiet_hours:
+  start: "00:00"
+  end: "07:00"
+
+llm:
+  primary:  { provider: anthropic, model: claude-haiku-5-5 }
+  fallback: { provider: ollama, model: "qwen2.5:1.5b", base_url: "http://localhost:11434" }
+
+internet:
+  web_search: { enabled: true, backend: brave, max_searches_per_turn: 2, safe_search: strict }
+  fetch_page: { enabled: true }
+  weather:    { enabled: true }
+  news:       { enabled: true }
+
+updates:
+  channel: stable
+  check: daily
+  auto_install: false

@@ -1,0 +1,24 @@
+# Models downloaded by `tomoshibi models fetch` (run by install.sh).
+# Each entry is pinned to a Hugging Face commit so installs are reproducible.
+# Bump `revision` deliberately; `tomoshibi update` re-fetches only changed entries.
+
+[models.whisper-base-en]
+kind = "stt"
+repo = "Systran/faster-whisper-base.en"
+revision = "3d3d5dee26484f91867d81cb899cfcf72b96be6c"
+files = ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]
+
+[models.whisper-small-en]
+kind = "stt"
+repo = "Systran/faster-whisper-small.en"
+revision = "d1d751a5f8271d482d14ca55d9e2deeebbae577f"
+files = ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]
+
+[models.piper-en_US-lessac-medium]
+kind = "tts"
+repo = "rhasspy/piper-voices"
+revision = "c10ece1aade47bb51c153c893d14e5bf8e5b7117"
+files = [
+    "en/en_US/lessac/medium/en_US-lessac-medium.onnx",
+    "en/en_US/lessac/medium/en_US-lessac-medium.onnx.json",
+]
