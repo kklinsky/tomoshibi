@@ -71,11 +71,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "transcribe":
-        from tomoshibi.stt import WhisperSTT
+        from tomoshibi import stt
 
         spec = models.find(specs, args.model) if args.model else models.first_of_kind(specs, "stt")
         t0 = time.perf_counter()
-        text = WhisperSTT(spec.local_dir()).transcribe(args.wav)
+        text = stt.load(spec).transcribe(args.wav)
         print(text)
         print(f"({spec.name}, {time.perf_counter() - t0:.2f} s including model load)")
         return 0

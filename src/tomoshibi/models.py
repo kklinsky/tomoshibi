@@ -1,5 +1,6 @@
 """Model downloads pinned by models.lock."""
 
+import posixpath
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,8 @@ class ModelSpec:
     repo: str
     revision: str
     files: tuple[str, ...]
+    engine: str = "whisper"  # which STT class reads this model (stt kind only)
+    arch: str | None = None  # engine-specific model architecture, e.g. Moonshine's "base"
 
     def local_dir(self, models_dir: Path | None = None) -> Path:
         return (models_dir or paths.models_dir()) / self.name
@@ -21,6 +24,11 @@ class ModelSpec:
     def is_present(self, models_dir: Path | None = None) -> bool:
         root = self.local_dir(models_dir)
         return all((root / f).is_file() for f in self.files)
+
+    def files_dir(self, models_dir: Path | None = None) -> Path:
+        """The deepest directory holding all of this model's files."""
+        common = posixpath.commonpath([posixpath.dirname(f) for f in self.files])
+        return self.local_dir(models_dir) / common
 
 
 def load_lock(path: Path) -> list[ModelSpec]:
@@ -33,6 +41,8 @@ def load_lock(path: Path) -> list[ModelSpec]:
             repo=entry["repo"],
             revision=entry["revision"],
             files=tuple(entry["files"]),
+            engine=entry.get("engine", "whisper"),
+            arch=entry.get("arch"),
         )
         for name, entry in data.get("models", {}).items()
     ]

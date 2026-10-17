@@ -1,9 +1,11 @@
-"""Local speech-to-text with faster-whisper."""
+"""Local speech-to-text with faster-whisper or Moonshine."""
 
 import wave
 from pathlib import Path
 
 import numpy as np
+
+from tomoshibi.models import ModelSpec
 
 WHISPER_RATE = 16_000
 
@@ -46,3 +48,32 @@ class WhisperSTT:
             audio = load_wav(audio)
         segments, _info = self._model.transcribe(audio, language="en", beam_size=1)
         return " ".join(segment.text.strip() for segment in segments).strip()
+
+
+class MoonshineSTT:
+    """Moonshine via moonshine-voice. Unlike Whisper it encodes only the audio it is given,
+    so short phrases are fast instead of paying for a fixed 30 s window."""
+
+    def __init__(self, model_dir: Path, arch: str):
+        from moonshine_voice.moonshine_api import string_to_model_arch
+        from moonshine_voice.transcriber import Transcriber
+
+        self._transcriber = Transcriber(str(model_dir), model_arch=string_to_model_arch(arch))
+
+    def transcribe(self, audio: Path | np.ndarray) -> str:
+        """Transcribe a WAV file, or mono float32 samples at 16 kHz."""
+        if isinstance(audio, Path):
+            audio = load_wav(audio)
+        transcript = self._transcriber.transcribe_without_streaming(audio.tolist(), WHISPER_RATE)
+        return " ".join(line.text.strip() for line in transcript.lines).strip()
+
+
+def load(spec: ModelSpec, models_dir: Path | None = None) -> WhisperSTT | MoonshineSTT:
+    """Create the STT engine that a models.lock entry names."""
+    if spec.engine == "whisper":
+        return WhisperSTT(spec.local_dir(models_dir))
+    if spec.engine == "moonshine":
+        if not spec.arch:
+            raise ValueError(f"{spec.name}: Moonshine models need an `arch` in models.lock")
+        return MoonshineSTT(spec.files_dir(models_dir), spec.arch)
+    raise ValueError(f"{spec.name}: unknown STT engine {spec.engine!r}")

@@ -1,4 +1,4 @@
-"""Speech pipeline benchmark: Piper speaks each phrase, Whisper transcribes it back.
+"""Speech pipeline benchmark: Piper speaks each phrase, each STT model transcribes it back.
 
 Synthetic speech is far cleaner than a real older voice, so the accuracy here is a
 best case. This checks that the pipeline works and how fast it is on the Pi; the real
@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from tomoshibi import models
-from tomoshibi.stt import WhisperSTT
+from tomoshibi import stt as stt_mod
 from tomoshibi.tts import PiperTTS
 
 PHRASES = [
@@ -71,7 +71,7 @@ def run(specs: list[models.ModelSpec], stt_names: list[str] | None = None) -> No
 
         for spec in stt_specs:
             t0 = time.perf_counter()
-            stt = WhisperSTT(spec.local_dir())
+            stt = stt_mod.load(spec)
             print(f"\nSpeech-to-text ({spec.name}, loaded in {time.perf_counter() - t0:.1f} s)")
             print(f"{'stt s':>8} {'RTF':>6} {'WER':>5}  heard")
             total_time = total_audio = total_wer = 0.0

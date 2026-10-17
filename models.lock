@@ -1,6 +1,8 @@
 # Models downloaded by `tomoshibi models fetch` (run by install.sh).
 # Each entry is pinned to a Hugging Face commit so installs are reproducible.
 # Bump `revision` deliberately; `tomoshibi update` re-fetches only changed entries.
+# STT entries name their `engine` (default "whisper"); Moonshine entries also give the
+# model `arch` that moonshine-voice expects for those files.
 
 [models.whisper-base-en]
 kind = "stt"
@@ -13,6 +15,64 @@ kind = "stt"
 repo = "Systran/faster-whisper-small.en"
 revision = "d1d751a5f8271d482d14ca55d9e2deeebbae577f"
 files = ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]
+
+[models.moonshine-tiny-en]
+kind = "stt"
+engine = "moonshine"
+arch = "tiny"
+repo = "moonshine-ai/moonshine-voice-assets"
+revision = "0bf2f2e5aff22e6fbba4300b00a4e00bbc4f8aae"
+files = [
+    "model/tiny-en/quantized/tiny-en/encoder_model.ort",
+    "model/tiny-en/quantized/tiny-en/decoder_model_merged.ort",
+    "model/tiny-en/quantized/tiny-en/tokenizer.bin",
+]
+
+[models.moonshine-base-en]
+kind = "stt"
+engine = "moonshine"
+arch = "base"
+repo = "moonshine-ai/moonshine-voice-assets"
+revision = "0bf2f2e5aff22e6fbba4300b00a4e00bbc4f8aae"
+files = [
+    "model/base-en/quantized/base-en/encoder_model.ort",
+    "model/base-en/quantized/base-en/decoder_model_merged.ort",
+    "model/base-en/quantized/base-en/tokenizer.bin",
+]
+
+[models.moonshine-small-streaming-en]
+kind = "stt"
+engine = "moonshine"
+arch = "small-streaming"
+repo = "moonshine-ai/moonshine-voice-assets"
+revision = "0bf2f2e5aff22e6fbba4300b00a4e00bbc4f8aae"
+files = [
+    "model/small-streaming-en/quantized_26_08_21/adapter.ort",
+    "model/small-streaming-en/quantized_26_08_21/cross_kv.ort",
+    "model/small-streaming-en/quantized_26_08_21/decoder_kv.ort",
+    "model/small-streaming-en/quantized_26_08_21/encoder.ort",
+    "model/small-streaming-en/quantized_26_08_21/frontend.model.ort",
+    "model/small-streaming-en/quantized_26_08_21/frontend.weights.ort",
+    "model/small-streaming-en/quantized_26_08_21/streaming_config.json",
+    "model/small-streaming-en/quantized_26_08_21/tokenizer.bin",
+]
+
+[models.moonshine-medium-streaming-en]
+kind = "stt"
+engine = "moonshine"
+arch = "medium-streaming"
+repo = "moonshine-ai/moonshine-voice-assets"
+revision = "0bf2f2e5aff22e6fbba4300b00a4e00bbc4f8aae"
+files = [
+    "model/medium-streaming-en/quantized_26_08_21/adapter.ort",
+    "model/medium-streaming-en/quantized_26_08_21/cross_kv.ort",
+    "model/medium-streaming-en/quantized_26_08_21/decoder_kv.ort",
+    "model/medium-streaming-en/quantized_26_08_21/encoder.ort",
+    "model/medium-streaming-en/quantized_26_08_21/frontend.model.ort",
+    "model/medium-streaming-en/quantized_26_08_21/frontend.weights.ort",
+    "model/medium-streaming-en/quantized_26_08_21/streaming_config.json",
+    "model/medium-streaming-en/quantized_26_08_21/tokenizer.bin",
+]
 
 [models.piper-en_US-lessac-medium]
 kind = "tts"
