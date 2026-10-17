@@ -20,5 +20,7 @@ is asked.
 - USB speakerphone (e.g., Jabra Speak 410)
 - Large momentary push button with LED
 
+Created by Kevin Klinsky. Design notes are in [docs/DESIGN.md](docs/DESIGN.md).
+
 > Tomoshibi is a companion, not a medical device. It's meant to support — never
 > replace — human care.

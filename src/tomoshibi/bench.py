@@ -22,7 +22,7 @@ PHRASES = [
     "Remind me to take my pills at eight o'clock.",
     "Who is Emma again?",
     "What's the weather going to be like tomorrow?",
-    "Tell Kevin I said hello.",
+    "Tell David I said hello.",
     "Where did I work after the Navy?",
 ]
 

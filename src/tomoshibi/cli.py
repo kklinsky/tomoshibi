@@ -14,6 +14,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("doctor", help="check the device setup")
+    sub.add_parser("about", help="show what Tomoshibi knows about itself (its 'about me' prompt)")
 
     models_cmd = sub.add_parser("models", help="manage downloaded models")
     models_sub = models_cmd.add_subparsers(dest="models_command", required=True)
@@ -39,6 +40,12 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     lock_path = args.lock or paths.default_models_lock()
+
+    if args.command == "about":
+        from tomoshibi import about
+
+        print(about.render_from_files())
+        return 0
 
     if args.command == "doctor":
         from tomoshibi import doctor

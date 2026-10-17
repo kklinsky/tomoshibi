@@ -3,6 +3,7 @@ call_him: Bob
 hometown: Toledo, Ohio
 location: Columbus, OH
 timezone: America/New_York
+caregiver: carol          # people.yaml id of the person who looks after him day to day
 routines:
   - Coffee and the newspaper around 7 AM
   - Afternoon walk to the mailbox

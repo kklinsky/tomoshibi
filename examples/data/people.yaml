@@ -20,6 +20,14 @@ people:
     lives: Columbus, OH
     notes: Visits most Saturdays. Teaches 4th grade.
 
+  - id: david
+    name: David
+    called: [David]
+    born: 1973-02-08
+    parents: [bob, carol]
+    lives: Ann Arbor, MI
+    notes: Built Tomo. Calls on Sunday evenings.
+
   - id: mike
     name: Mike Smith
     spouse: karen

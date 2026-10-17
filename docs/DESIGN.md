@@ -1,6 +1,8 @@
 # Tomoshibi — Design
 
-Status: draft v0.3 (2026-10-16)
+Author: Kevin Klinsky · Status: draft v0.4 (2026-10-17)
+
+Examples use a fictional family: Bob (the person Tomoshibi is for), his wife Carol, their children Karen and David, Karen's husband Mike and daughter Emma. Real family details live only in a private data repo (§6).
 
 ## 1. Goals
 
@@ -180,10 +182,10 @@ No wake word in v1. They false-trigger on TV audio and are one more thing to rem
 Mom also finds technology hard and **won't use Slack or a phone app**, so the device itself has to be her whole interface. She uses the same button as Dad, and everything she needs must work by voice.
 
 - **Asking and getting help:** same as Dad.
-- **Passing things to the family:** "Tell Kevin the doctor moved Dad's appointment to Thursday." Same `send_message` flow as Dad's, attributed *"From Mom"*.
+- **Passing things to the family:** "Tell David the doctor moved Dad's appointment to Thursday." Same `send_message` flow as Dad's, attributed *"From Mom"*.
 - **Changing events/reminders:** **undecided.** It needs a guard so a confused moment of Dad's can't cancel his pills. Candidates:
-  - a. **Family proxy:** Mom calls Kevin or his sister, and they make the change in Slack. Simplest for her, but it depends on us.
-  - b. **Voice edits with a safety net:** anyone can add or change events by voice. The device reads back the change and asks for confirmation, then posts it to `#tomoshibi` with *Undo*, so Kevin or his sister can catch mistakes. Medication reminders could be marked *protected* (changeable only from Slack).
+  - a. **Family proxy:** Mom calls one of the children (David or Karen), and they make the change in Slack. Simplest for her, but it depends on them.
+  - b. **Voice edits with a safety net:** anyone can add or change events by voice. The device reads back the change and asks for confirmation, then posts it to `#tomoshibi` with *Undo*, so the family can catch mistakes. Medication reminders could be marked *protected* (changeable only from Slack).
   - c. **Caregiver gesture:** press-and-hold for 3 s unlocks editing tools for one session. Only works if Mom can remember the gesture.
   - Current lean: **b**, plus protected medication reminders, with a as the fallback for anything protected. Try it with Mom before deciding.
 - **Speaking to the right person:** the device can't reliably tell Mom's voice from Dad's, so it asks when it matters ("Is this Carol or Bob?") and never relies on voice as a permission check.
@@ -518,7 +520,7 @@ A private, family-only Slack workspace is the link between the device and the fa
 | DM with the bot | Private messages to Dad and private info; replies from Dad to that person |
 
 ### Outbound: Dad or Mom → family
-- "Tell Kevin the Tigers won." → the LLM calls `send_message(contact="Kevin", text=...)` → the device reads back "I'll send Kevin: 'The Tigers won.' OK?" → on yes, it posts a DM to Kevin, attributed: *"From Dad: The Tigers won."*
+- "Tell David the Tigers won." → the LLM calls `send_message(contact="David", text=...)` → the device reads back "I'll send David: 'The Tigers won.' OK?" → on yes, it posts a DM to David, attributed: *"From Dad: The Tigers won."*
 - Messages are paraphrased only enough to be clear, never embellished. The confirmation step catches transcription mistakes.
 - Alerts (distress, missed reminder, scam mention, device offline/back online) post to `#tomoshibi` and @-mention the configured responders.
 
@@ -527,8 +529,8 @@ Every allowlisted message is classified by the LLM (using the tool schema, so it
 
 | Type | Example | What happens |
 |---|---|---|
-| **Message for Dad** (or Mom) | "Tell Dad I love him and I'll call Sunday." | Queued in the inbox. Delivered at the next button press ("You have a message from Kevin…"), or announced with a gentle chime if marked urgent. Held during quiet hours. Spoken in the AI's own words (see below). Screen shows the sender's photo. The thread gets a ✅ *"Dad heard this at 3:12 PM."* |
-| **Event** | "Sis and I are visiting Saturday around 2." | Becomes an event in SQLite, reminders included. The bot replies in thread with what it understood ("Added: Kevin & Karen visit, Sat Oct 24, 2:00 PM") and offers *Undo*. |
+| **Message for Dad** (or Mom) | "Tell Dad I love him and I'll call Sunday." | Queued in the inbox. Delivered at the next button press ("You have a message from David…"), or announced with a gentle chime if marked urgent. Held during quiet hours. Spoken in the AI's own words (see below). Screen shows the sender's photo. The thread gets a ✅ *"Dad heard this at 3:12 PM."* |
+| **Event** | "Sis and I are visiting Saturday around 2." | Becomes an event in SQLite, reminders included. The bot replies in thread with what it understood ("Added: David & Karen visit, Sat Oct 24, 2:00 PM") and offers *Undo*. |
 | **Family note** (context) | "Dad's knee has been bothering him, ask how it's feeling." / "The Lions play tonight." | Stored as a note with an expiry (default 7 days, or the date it refers to). Active notes go into the system prompt so the device can naturally bring them up. |
 | **Question about Dad** | "How's Dad doing today?" | Replies from local data: reminders acknowledged, messages, a short summary if summaries are enabled. Never raw transcripts. |
 | **Command** | `/tomoshibi status`, `notes`, `cancel <event>`, `remember <fact>` | Device health, active notes, event management (caregiver role), adding a pending knowledge fact (§6.3). |
@@ -538,11 +540,11 @@ When it isn't sure of the type or date, it asks back in the thread instead of gu
 
 ### How messages are spoken to Dad
 Messages are **interpreted by the AI before they're spoken**, not read word for word. Family messages are often written in shorthand ("Visiting Sat ~2, bringing the kids, don't let him make lunch"), which would confuse him if read verbatim.
-- The model rewrites the message into short, warm, plain sentences: who it's from, what it means for him, and when. "Kevin sent you a message. He and Karen are coming to visit this Saturday around 2 in the afternoon, and they're bringing the kids."
+- The model rewrites the message into short, warm, plain sentences: who it's from, what it means for him, and when. "David sent you a message. He and Karen are coming to visit this Saturday around 2 in the afternoon, and they're bringing the kids."
 - **Keep the meaning, never add to it.** No invented details, promises or feelings the sender didn't express. Uncertain dates are resolved against the calendar ("Saturday, October 24th"), or left vague instead of guessed.
-- Parts meant for Mom or about his care ("don't let him make lunch") are **not spoken to Dad**. They become a family note, or are held for Mom: "Carol, Kevin left a message for you, too."
+- Parts meant for Mom or about his care ("don't let him make lunch") are **not spoken to Dad**. They become a family note, or are held for Mom: "Carol, David left a message for you, too."
 - The original text and the spoken version are both saved, and the spoken version is posted in the Slack thread so the sender can see how it came across.
-- He can ask "What did Kevin say?" again at any time that day and hear it again, as patiently as the first time.
+- He can ask "What did David say?" again at any time that day and hear it again, as patiently as the first time.
 
 ### Quiet hours: midnight to 7 AM
 Configurable (`quiet_hours: { start: "00:00", end: "07:00" }`). During quiet hours:
@@ -580,6 +582,7 @@ Configurable (`quiet_hours: { start: "00:00", end: "07:00" }`). During quiet hou
 | `send_message(contact, text)` to allowlisted family via Slack, confirmed aloud | ✓ | ✓ |
 | `read_messages` (deliver queued inbox messages), `list_family_notes` | ✓ | ✓ |
 | `add_event`, `update_event`, `cancel_event` | per §4 guard | ✓ |
+| `device_status` (online/offline, queued messages, next reminder, volume, mute) (§9b) | ✓ | ✓ |
 | `notify_caregiver(reason)` (distress, fall, scam call, missed reminders) | automatic | — |
 
 Tools are defined once in the neutral schema and every provider adapter exposes them.
@@ -655,19 +658,21 @@ The device has a **light persona**: a consistent character with a name, a voice,
 
 ### What it never does (non-overridable rules)
 These live in code, outside `persona.yaml`, and are added to every system prompt after the persona, so a persona edit can't remove them:
-- **Never claims to be human.** If he asks "Are you a real person?", it answers honestly and gently. The suggested wording ties it to the family: *"I'm Tomo, a helper your son Kevin made for you."*
+- **Never claims to be human.** If he asks "Are you a real person?", it answers honestly and gently. The suggested wording ties it to the family: *"I'm {name}, a helper {made_by} made for you"*, e.g. *"I'm Tomo, a helper your son David made for you."* (§9b)
 - **Never impersonates a real person.** No cloned voices or role-play of family members, and **especially not of anyone who has died**. For someone with dementia this can cause real confusion and grief.
 - **No invented backstory.** No fictional childhood, memories or strong opinions presented as its own. They could blur with his own memories.
+- **Never claims an ability it doesn't have.** Only what's in its generated "can do" list (§9b); otherwise it says so kindly and names a person who can help.
 - **No big personality.** No catchphrases or recurring quirks; they're charming the first week and grating by the fiftieth time.
 
 ### `persona.yaml`
 ```yaml
 name: Tomo
-introduces_self_as: "Tomo, a helper Kevin made for you"
+made_by: "your son David"        # used in introductions (§9b)
 voice:
-  engine: piper
-  model: en_US-<voice>-medium   # chosen with Dad
-  speed: 0.9                     # slightly slower than default
+  engine: kokoro
+  model: kokoro-82m-int8
+  voice: am_fenrir               # chosen by ear; confirm with Dad
+  speed: 1.1                     # >1.0 is slower
 face_pack: tomoshibi
 temperament: >
   Patient, warm and unhurried. Gently curious about Bob's day and his memories.
@@ -680,13 +685,51 @@ examples:                        # a few exchanges that set the tone for any mod
   - user: "What day is it?"
     assistant: "It's Saturday, Bob. Saturday afternoon. Karen's coming by at two."
   - user: "Are you a real person?"
-    assistant: "I'm not a person, Bob. I'm Tomo, a helper your son Kevin made for you. I'm always happy to talk."
+    assistant: "I'm not a person, Bob. I'm Tomo, a helper your son David made for you. I'm always happy to talk."
 ```
 
 The system prompt is built in a fixed order: **non-overridable rules → persona → profile and people → today's context (date, events, family notes)**. The same template is used for every provider.
 
 ### For forks
 The example data ships a neutral default persona. Families change the name, voice, face pack and temperament by editing `persona.yaml` (or through the setup wizard); the non-overridable rules stay the same.
+
+## 9b. Self-knowledge and introductions
+
+The persona says *how* Tomoshibi presents itself. It also needs to know **what it is, what it can do, how it's used, and how it handles privacy**, so it can answer questions about itself truthfully instead of guessing. Without this, a model will happily claim abilities the device doesn't have ("I'll call Karen for you") or miss ones it does.
+
+### What it should be able to answer
+| Who asks | Examples |
+|---|---|
+| **The person it's for** | "Who are you?" · "What is this thing?" · "What can you do?" · "Are you always listening?" · "Who can hear what I say?" · "Do you tell my son what I talk about?" · "Are you working?" |
+| **The caregiver** | "How do I add a reminder?" · "How do I make it stop talking?" · "What does the orange symbol mean?" · "What do I do if it says it's offline?" |
+| **Either** | "Did my message to David go through?" · "Why can't you look that up?" · "Why is your light on?" |
+
+### The "about me" prompt (generated, never hand-edited per family)
+A template in the public repo, [`src/tomoshibi/prompts/about_me.md`](../src/tomoshibi/prompts/about_me.md), is filled in from the family's private files and the live config every time the system prompt is built:
+
+| Placeholder | Comes from |
+|---|---|
+| `{name}` | `persona.yaml` → `name` (e.g. Tomo) |
+| `{person}` | `profile.yaml` → `call_him` (what the person is called) |
+| `{made_by}` | `persona.yaml` → `made_by`, e.g. "your son David". Later derived from the family tree (§6.1) by naming who built it |
+| `{caregiver}` | `profile.yaml` → `caregiver` (a `people.yaml` id), e.g. Carol |
+| `{capabilities}`, `{cannot}` | **Generated from config**: web search on/off, weather, news, which family members it can message, reminders, quiet hours |
+| `{privacy}` | Generated from config: listening only while the light is on, where conversations are stored, whether daily family summaries are switched on |
+
+Because the capability and privacy lines come from config, they can't drift from reality: turn off web search and Tomoshibi stops saying it can look things up. `tomoshibi about` prints the rendered result so the family can read exactly what it believes about itself.
+
+**Rule (added to the non-overridable rules, §9a): never claim an ability that isn't in the "can do" list.** If asked for something it can't do, it says so kindly and names a person who can help.
+
+### Introductions
+| When | What happens |
+|---|---|
+| **First meeting** | Started by the family during setup (`tomoshibi introduce`, or from the setup wizard) while they're sitting with the person. A short, warm script: its name, who made it and why, how to use the button, and that it's happy to be asked anything, any number of times. It ends by asking a gentle question about them |
+| **"Who are you?" / "What is this?"** | The **same short answer every time**, built from the template: *"I'm {name}, a helper {made_by} made for you. Press my button whenever you want to talk."* Familiar wording helps. Never "I told you before" |
+| **Morning greeting** | Opens with its name: *"Good morning, {person}, it's {name}."* A daily, natural reminder of who it is |
+| **He seems unsure** what it is or why it's talking | It re-introduces itself briefly, without pointing out that he forgot |
+
+### Device status
+A `device_status` tool (§8) answers questions about the device itself from real state, never from the model's imagination: online/offline and since when (§5), whether queued messages are still waiting to send, the next reminder, volume, quiet hours, and whether the speakerphone is muted.
 
 ## 10. Reliability & operations
 
@@ -831,7 +874,7 @@ tomoshibi-enclosure/
 | **1 – Hear & speak locally** | VAD + local STT + Piper; STT benchmark on Dad's voice | Spoken phrase transcribed and echoed back with ≤ 1.5 s overhead |
 | **2 – Talk** | LLM provider interface + Anthropic adapter, profile/people/wiki context, family-tree relationship derivation + `kb check`, streaming TTS, face states + lip sync, barge-in | Natural conversation, ≤ 3 s to first audio; switching to OpenAI is a config change |
 | **3 – Remind** | SQLite events, scheduler, acknowledgments, morning greeting, caregiver edit path | Reminders fire with Wi-Fi unplugged; Mom adds one without help |
-| **3a – Family Slack** | Slack app (Socket Mode), allowlist, outbound messages with confirmation, inbound classification (message / event / note), inbox delivery + receipts, outbox retry, alerts | "We're visiting Saturday at 2" in Slack → Dad hears about it at the morning greeting; "Tell Kevin hi" → arrives as a DM |
+| **3a – Family Slack** | Slack app (Socket Mode), allowlist, outbound messages with confirmation, inbound classification (message / event / note), inbox delivery + receipts, outbox retry, alerts | "We're visiting Saturday at 2" in Slack → Dad hears about it at the morning greeting; "Tell David hi" → arrives as a DM |
 | **3b – Knowledge pipeline** | `ingest` / `review` / `kb push`, timeline, knowledge-gap and `remember` loops, reminiscence prompts | A recorded story from Mom becomes approved wiki facts the device can talk about |
 | **4 – Offline brain & hardening** | Connectivity monitor + offline icon, local intent matcher, local LLM fallback, self-test, watchdog, overlay FS, heartbeat | Pull the network cable mid-conversation and it degrades gracefully; with the router unplugged every reminder fires and can be acknowledged and snoozed |
 | **5 – Enclosure & live with it** | Fusion 360 enclosure in `tomoshibi-enclosure` (hw-rev-A), prompt tuning from real use, docs for other builders | Two weeks at my parents' with no intervention; repo is buildable by a stranger |

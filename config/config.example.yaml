@@ -31,6 +31,13 @@ internet:
   weather:    { enabled: true }
   news:       { enabled: true }
 
+messaging:
+  enabled: true
+  contacts: [karen, david]            # people.yaml ids the device may message
+
+privacy:
+  daily_summary: false                # short daily summary to the family (never transcripts)
+
 updates:
   channel: stable
   check: daily
