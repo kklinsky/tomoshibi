@@ -4,8 +4,9 @@
 
 speech:
   stt_model: whisper-base-en          # name from models.lock
-  tts_model: piper-en_US-lessac-medium
-  tts_speed: 1.1                      # length scale; >1.0 is slower
+  tts_model: kokoro-82m-int8
+  tts_voice: am_fenrir
+  tts_speed: 1.1                      # >1.0 is slower
 
 conversation:
   follow_up_window: 10s

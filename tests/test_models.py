@@ -14,7 +14,7 @@ def test_lock_parses_and_has_one_of_each_kind():
 
 
 def test_piper_model_path_points_at_onnx(tmp_path):
-    spec = models.first_of_kind(models.load_lock(LOCK), "tts")
+    spec = models.find(models.load_lock(LOCK), "piper-en_US-lessac-medium")
     assert models.piper_model_path(spec, tmp_path).suffix == ".onnx"
 
 
@@ -35,7 +35,8 @@ def test_files_dir_is_the_common_parent(tmp_path):
 
 def test_tts_entries_name_a_known_engine():
     specs = models.load_lock(LOCK)
-    assert models.first_of_kind(specs, "tts").engine == "piper", "Piper stays the default"
+    default = models.first_of_kind(specs, "tts")
+    assert (default.engine, default.voice) == ("kokoro", "am_fenrir"), "project default voice"
     for spec in specs:
         if spec.kind == "tts":
             assert spec.engine in ("piper", "kokoro"), spec.name

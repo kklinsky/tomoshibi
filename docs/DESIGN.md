@@ -224,7 +224,7 @@ Every replaceable piece sits behind a small interface and is chosen in `config.y
 | Interface | Default | Alternatives |
 |---|---|---|
 | `SpeechToText` | **faster-whisper** `base.en`/`small.en` int8 (CPU) | **Moonshine** (built for edge devices, faster on short clips), Vosk (streaming, lower accuracy), whisper.cpp |
-| `TextToSpeech` | **Piper** (fast on a Pi 5, many voices) | Kokoro-82M via kokoro-onnx (more natural; ~1.1-1.9 s per sentence, RTF ~0.85 on a Pi 5, int8) |
+| `TextToSpeech` | **Kokoro-82M** int8 via kokoro-onnx, voice **`am_fenrir`** (chosen by ear: friendly and clear; ~1.1–1.9 s per sentence, RTF ~0.85 on a Pi 5) | **Piper** (much faster, ~0.1× real time, but more synthetic) |
 | `VoiceActivity` | Silero VAD (ONNX) | WebRTC VAD |
 | `LLMProvider` | Anthropic Claude | OpenAI, Ollama (local), any OpenAI-compatible endpoint |
 | `Display` | ST7789 via `luma.lcd` or Adafruit `rgb_display` | Null display (headless builds) |
@@ -239,9 +239,17 @@ Every replaceable piece sits behind a small interface and is chosen in `config.y
 | End-of-speech detection | built into the 1.5 s silence window |
 | Local STT (short utterance) | ≤ 1.0 s |
 | LLM time to first sentence (streaming) | ≤ 1.5 s |
-| Local TTS, first sentence | ≤ 0.4 s |
+| Local TTS, first sentence | ≤ 0.4 s with Piper; **~1.1 s with Kokoro** (the chosen voice) |
 
 Stream the LLM output, split it into sentences, and synthesize and play sentence by sentence so speech starts before the full answer exists.
+
+**Kokoro trade-off.** The chosen voice (Kokoro `am_fenrir`) sounds noticeably more natural than Piper, but its first sentence takes ~1.1 s instead of ~0.1 s, putting the budget at risk. Ways to win that time back:
+- **Moonshine for STT** saves ~0.9 s per turn compared with Whisper base (0.69 s vs 1.63 s on the Pi 5), which roughly offsets Kokoro.
+- **Keep first sentences short.** The system prompt asks for a short opening sentence ("Sure, Bob." / "It's Saturday."), and the sentence splitter can break the first chunk at a comma, so the first audio is quick to synthesize.
+- **Pre-synthesize fixed phrases** and cache the audio: reminder texts (when an event is saved), greetings, "Let me look that up", "I'm not connected right now", the morning greeting's fixed parts. These then play instantly and also work if synthesis is busy.
+- **Show it's thinking.** The face's thinking animation already covers the wait; a soft acknowledgement sound when his turn ends makes a 1–2 s pause feel natural rather than broken.
+- **Overlap work:** synthesize sentence *n+1* while sentence *n* plays (Kokoro's RTF < 1 keeps up once started).
+- If it still feels slow in real use with Dad, Piper remains one config change away.
 
 ### LLM provider abstraction
 ```python
@@ -305,7 +313,7 @@ Reminders must never depend on the internet. Everything in the reminder path is 
 | Schedule | Events and recurrence rules are in SQLite; the scheduler runs on the device |
 | Time | RTC battery keeps time through power cuts with no network; NTP corrects it when online |
 | What's spoken | Each event stores its **own reminder text** (written by the family or generated when the event was created online). The LLM may phrase it more naturally when online, but offline it speaks the stored text unchanged |
-| Speech | Piper TTS on the device |
+| Speech | Kokoro TTS on the device; reminder audio is pre-synthesized when the event is saved, so it plays instantly |
 | Listening for his reply | Local STT + the local intent matcher for "OK" / "remind me in 10 minutes" / "what time is it?" |
 | Acknowledgment & retries | Recorded in SQLite; retry policy runs locally |
 | Family alert for a missed reminder | Queued in the **outbox** and sent as soon as the connection returns, marked with the original time ("8:15 AM: Dad didn't respond to his pill reminder") |
@@ -637,7 +645,7 @@ The device has a **light persona**: a consistent character with a name, a voice,
 | Element | Guidance |
 |---|---|
 | **Name** | Short, easy to say and remember. "Tomoshibi" is the project name, but a short form like **"Tomo"** or a name **Dad chooses himself** will work better. Letting him name it gives him a sense of ownership |
-| **Voice** | One Piper voice, chosen by trying a few with Dad. Clarity first, warmth second. Speed and pitch tuned to his hearing |
+| **Voice** | One voice, never changing. Chosen: **Kokoro `am_fenrir`** (friendly and clear). Confirm with Dad on the Jabra; speed tuned to his hearing |
 | **Face** | The face pack (§3) is paired with the persona so they always match |
 | **Temperament** | Patient, warm, unhurried, gently curious about him. Light humor only, matched to him: some people enjoy being teased, others find it patronizing |
 | **Speaking style** | Plain words, short sentences, his era's references, uses his name occasionally (not every sentence) |
@@ -705,7 +713,7 @@ The README also shows the cautious version (download, read, then run) for people
 3. **Hardware config:** enables SPI (`raspi-config nonint`), enables the hardware watchdog, sets the timezone and configures the RTC.
 4. **Service user:** creates a `tomoshibi` system user in the `audio`, `gpio` and `spi` groups. The service never runs as root.
 5. **Code:** installs the **latest tagged release** (not `main`) into `releases/<version>/` with its own venv from a locked `uv.lock`, and points `current` at it.
-6. **Models:** downloads the STT model, Piper voice and VAD model listed in `models.lock` (URL + SHA-256), verifying each checksum. Optional local LLM via Ollama if the Pi has 8 GB and the user opts in.
+6. **Models:** downloads the STT models, TTS voices (Kokoro default, Piper alternative) and VAD model listed in `models.lock`, each pinned to a Hugging Face commit. Optional local LLM via Ollama if the Pi has 8 GB and the user opts in.
 7. **Config & data:** creates `/etc/tomoshibi/config.yaml` from the example, `secrets.env` (mode 0600), and the data directory seeded from `examples/data/`. **Never overwrites existing config or data** on re-run.
 8. **Service:** installs and enables the `systemd` unit.
 9. **Setup wizard:** runs `tomoshibi setup` (below).
@@ -716,7 +724,7 @@ The script is **idempotent**: re-running it repairs a broken install without tou
 ### Setup wizard (`tomoshibi setup`)
 A terminal Q&A that can be re-run any time to change settings. It writes the config, so nobody needs to hand-edit YAML for the basics:
 - Person's name and what to call him, location (for weather), timezone.
-- **Persona:** device name, and a voice picker that speaks a sample sentence in each installed Piper voice.
+- **Persona:** device name, and a voice picker that speaks a sample sentence in each installed voice (Kokoro and Piper).
 - **Audio:** detects the Jabra (or other USB speakerphone), plays a test sound, records a test phrase and plays it back.
 - **Button & LED:** "Press the button now" → confirms the GPIO pin; blinks the LED.
 - **Display:** shows a test pattern and the face; asks if it looks right (orientation/color order are the usual problems).
@@ -810,7 +818,7 @@ tomoshibi-enclosure/
 ```
 
 - `.gitignore` blocks `data/`, `sources/`, `review/`, `*.db`, secrets and recordings. A pre-commit check refuses commits containing files from those directories.
-- **License:** MIT or Apache-2.0 for Tomoshibi's code. Note that Piper's current release (piper1-gpl) is GPL-3.0. Calling it as a separate process, or keeping TTS a swappable plugin, avoids tying the whole project to GPL. Confirm before the first release.
+- **License:** MIT or Apache-2.0 for Tomoshibi's code. Note that Piper's current release (piper1-gpl) is GPL-3.0, and Kokoro's kokoro-onnx pulls in `phonemizer` (GPL-3.0). Calling TTS as a separate process, or keeping it a swappable plugin, avoids tying the whole project to GPL. Confirm before the first release.
 - A one-page **caregiver guide** (printable, large type) belongs in `docs/`.
 
 ## 12. Roadmap
@@ -834,6 +842,6 @@ tomoshibi-enclosure/
 - Which alerts go to whom (distress vs missed reminder vs offline)? Quiet hours are decided: midnight–7 AM (§6a).
 - Which caregiver edit guard (§4 a/b/c)?
 - Arcade button LED voltage (5 V vs 12 V)?
-- Persona name: "Tomo", or a name Dad picks? Which Piper voice? Try a few with him (§9a).
+- Persona name: "Tomo", or a name Dad picks? Voice is chosen (Kokoro `am_fenrir`); confirm with him on the Jabra and tune the speed (§9a).
 - How the family wants sensitive topics (e.g. deceased relatives) handled.
 - Monthly cloud budget. With local STT/TTS, cost is just the LLM: likely a few dollars a month with Haiku and prompt caching.
