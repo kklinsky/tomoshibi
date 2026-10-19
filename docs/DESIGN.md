@@ -42,6 +42,9 @@ This section covers the core parts and design decisions. The full parts list (po
 | 2.0" 320×240 IPS TFT, ST7789 (Adafruit EYESPI) | SPI. Connect via an EYESPI adapter (e.g. EYESPI Pi Beret) or jumper wires to SPI0. The microSD slot on the breakout isn't needed. |
 | 3D-printed enclosure (Fusion 360) | Lantern/lamp form to suit the name. Jabra on top, screen and button on the front (see below). Weighted base, cable strain relief, ventilation for the Pi. Lives in its own repo, `tomoshibi-enclosure` (§11). |
 
+### Brand mark
+The wordmark **tomo** in **Fredoka SemiBold**, lamplight `#f2b45a` on night `#1e1b2e`, goes on the enclosure and on the device's boot and setup screens (never on the everyday face screen). The font is bundled under the SIL OFL so the device draws it offline, and outlined SVGs are ready for Fusion 360. See [`brand.md`](brand.md).
+
 ### Enclosure layout
 ```
         ┌──────────────────────┐   ← Jabra Speak 410 sits in a recess on top,

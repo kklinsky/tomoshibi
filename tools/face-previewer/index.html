@@ -7,7 +7,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Zen+Maru+Gothic:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 /* Layout: a lantern-dark workbench. Device on the left (sticky on wide screens),
    controls and the parts checklist on the right; stacks to one column on phones. */
@@ -26,6 +26,7 @@
   --font-display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Arial Rounded MT Bold", system-ui, sans-serif;
   --font-body: "Zen Kaku Gothic New", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-mark: "Fredoka", "Zen Maru Gothic", "Arial Rounded MT Bold", system-ui, sans-serif; /* the "tomo" wordmark, docs/brand.md */
   --r: 10px;
 }
 * { box-sizing: border-box; }
@@ -41,6 +42,7 @@ body {
 h1, h2, h3 { font-family: var(--font-display); font-weight: 700; text-wrap: balance; margin: 0; }
 h1 { font-size: 1.6rem; letter-spacing: .01em; }
 h1 .kanji { color: var(--lamp); margin-left: .35em; font-weight: 500; }
+.mark { font-family: var(--font-mark); font-weight: 600; color: var(--lamp); letter-spacing: 0; margin-right: .3em; }
 h2 { font-size: 1.05rem; }
 h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); font-family: var(--font-body); font-weight: 700; }
 p { margin: 0; }
@@ -150,7 +152,7 @@ details[open] summary { margin-bottom: 8px; }
 <body>
 <div class="wrap">
   <header style="display:flex;flex-direction:column;gap:6px">
-    <h1>Tomoshibi Face Previewer<span class="kanji">灯火</span></h1>
+    <h1><span class="mark">tomo</span>Face Previewer<span class="kanji">灯火</span></h1>
     <p class="lede">Load your face parts and watch them animate on a copy of Tomoshibi's 320 × 240 screen. Try every state, expression and transition, check your files against the brief, and make the <code>preview_states.png</code> sheet.</p>
     <p class="privacy">Your images stay on your computer. Nothing is uploaded anywhere.</p>
   </header>
@@ -257,6 +259,7 @@ details[open] summary { margin-bottom: 8px; }
             <label class="check"><input type="checkbox" id="opt-card"> Reminder card</label>
             <label class="check"><input type="checkbox" id="opt-20fps" checked> Device frame rate (20 fps)</label>
             <label class="check"><input type="checkbox" id="opt-guides"> Face-area guide</label>
+            <label class="check"><input type="checkbox" id="opt-boot"> Boot screen (wordmark)</label>
           </div>
         </div>
       </section>
@@ -395,7 +398,7 @@ const state = {
   trans: null,       // {name, start, dur, then}
   voice: "sim",      // sim | audio
   scene: null,
-  card: false, strip: true, offline: false, fps20: true, guides: false,
+  card: false, strip: true, offline: false, fps20: true, guides: false, boot: false,
 };
 state.sample.mini_face = makeMini(state.sample);
 
@@ -727,6 +730,16 @@ function drawCard(g) {
   const mini = part("mini_face"); if (mini) g.drawImage(mini, W - 84, 18, 64, 64);
   g.textBaseline = "alphabetic";
 }
+// Boot screen: the "tomo" wordmark in Fredoka SemiBold, lamplight on the background (docs/brand.md).
+function drawBoot(g) {
+  g.fillStyle = state.bg; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#f2b45a"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = `600 72px ${getComputedStyle(document.body).getPropertyValue("--font-mark")}`;
+  g.fillText("tomo", W / 2, H / 2 - 8);
+  g.font = `500 14px ${getComputedStyle(document.body).getPropertyValue("--font-body")}`;
+  g.fillStyle = "#a99fb6"; g.fillText("Starting up…", W / 2, H / 2 + 50);
+  g.textAlign = "start"; g.textBaseline = "alphabetic";
+}
 function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 
 // ---------------------------------------------------------------------------
@@ -742,7 +755,7 @@ function tick(now) {
   updateDrift(now);
   const P = pose(now, state.mode, state.expr, state.trans);
   P.card = state.card;
-  drawFrame(sg, P, now);
+  if (state.boot) drawBoot(sg); else drawFrame(sg, P, now);
   const listening = (state.mode === "listening" && !state.trans) || state.trans?.then === "listening";
   led.classList.toggle("on", listening);
   nowEl.innerHTML = `<b>${state.trans ? "transition: " + state.trans.name : state.mode}</b>` +
@@ -800,7 +813,9 @@ function syncButtons() {
 syncButtons();
 
 const bind = (id, key) => document.getElementById(id).addEventListener("change", e => { state[key] = e.target.checked; });
-bind("opt-strip", "strip"); bind("opt-offline", "offline"); bind("opt-card", "card"); bind("opt-20fps", "fps20"); bind("opt-guides", "guides");
+bind("opt-strip", "strip"); bind("opt-offline", "offline"); bind("opt-card", "card"); bind("opt-20fps", "fps20"); bind("opt-guides", "guides"); bind("opt-boot", "boot");
+// The canvas can only use Fredoka once the web font has loaded.
+document.fonts?.load('600 64px "Fredoka"').catch(() => {});
 
 // Voice
 const simBtn = document.getElementById("voice-sim");
