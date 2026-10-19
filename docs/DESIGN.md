@@ -767,7 +767,7 @@ The README also shows the cautious version (download, read, then run) for people
 The script is **idempotent**: re-running it repairs a broken install without touching config or data. `install.sh --answers answers.yaml` runs the whole thing non-interactively (for reinstalling or building a second device).
 
 ### Setup wizard (`tomoshibi setup`)
-A terminal Q&A that can be re-run any time to change settings. It writes the config, so nobody needs to hand-edit YAML for the basics:
+A terminal Q&A that can be re-run any time to change settings. It writes the config, so nobody needs to hand-edit YAML for the basics. The setup page (§10b) offers the critical settings in a browser and shares the same config code:
 - Person's name and what to call him, location (for weather), timezone.
 - **Persona:** device name, and a voice picker that speaks a sample sentence in each installed voice (Kokoro and Piper).
 - **Audio:** detects the Jabra (or other USB speakerphone), plays a test sound, records a test phrase and plays it back.
@@ -811,6 +811,47 @@ Builders who aren't around to update by hand can turn `auto_install` on. The dev
 - GitHub Actions runs lint and tests on every push, and on a tag builds the release artifact (source + `uv.lock` + `models.lock` + checksums) attached to the GitHub Release.
 - `scripts/uninstall.sh` removes the service, code and models, and asks before deleting data.
 - Later: a prebuilt SD card image (via `pi-gen`) for builders who don't want to use SSH at all.
+
+## 10b. Setup hotspot and setup page
+
+A small web page on the device for the **critical settings that keep it working**: Wi-Fi, the AI service, the family Slack connection, and a few basics. It's the pattern people already know from smart plugs and printers, so another family's builder can manage their device from a phone. The person using Tomoshibi and their caregiver never see it.
+
+### What it covers
+| Section | Contents |
+|---|---|
+| **Wi-Fi** | Scan for networks, pick one, enter the password. Shows the current network and signal strength |
+| **AI service** | Provider (Claude, ChatGPT, local), model, API key, with a **Test connection** button |
+| **Family Slack** | App and bot tokens, with **Send test message** |
+| **Basics** | Volume, speaking speed, quiet hours, internet lookups on/off (§8a) |
+| **Status** | The `tomoshibi doctor` checks, connectivity (§5), current version, **Update** and **Roll back** (§10a) |
+
+Out of scope: people, reminders, memories and other personal content. Those stay with the private data files, Slack, and voice. The setup page is for keeping the device running, not for running Dad's life.
+
+### How it's reached
+1. **Setup hotspot.** The device creates its own Wi-Fi network, **"Tomoshibi-Setup"**, when either:
+   - it can't join any known Wi-Fi for 5 minutes (new router, changed password), or
+   - someone deliberately starts **setup mode** (below).
+
+   Joining the hotspot from a phone or laptop opens the setup page automatically (a captive portal, like hotel Wi-Fi sign-in). While the hotspot is up, the device keeps trying its known networks in the background and drops the hotspot once one works.
+2. **Normally, over Tailscale.** `http://tomoshibi.<tailnet>.ts.net` or the device's Tailscale address, from wherever the admin is. The page **doesn't listen on the home network itself**, so nothing else on that network can reach it.
+
+### Setup mode and security
+The page handles Wi-Fi passwords and API keys in someone else's home, so:
+- **Physical presence to unlock.** Setup mode starts with a deliberate gesture: **hold the button for 10 seconds**, then press it once more within 5 seconds to confirm. The screen then shows the hotspot name, its WPA2 password, and a **one-time 6-digit code** for the page. Only someone standing at the device can get in, and the person using it won't start it by accident (if they do, Tomoshibi says "Setup mode is for your family. I'll go back to normal in a moment" and it times out).
+- **Over Tailscale,** the page asks for the admin password set during install (plus the one-time code, when setup mode is active). Tailscale itself already limits who can reach the device.
+- **Secrets are write-only.** Saved keys and passwords are never shown or sent back to the browser, only "saved, ends in …a4f2". They can be replaced, not read. They're stored in `secrets.env` (mode 0600), as before.
+- **Limits:** setup mode turns itself off after 15 minutes; wrong codes are rate-limited and the code changes after 5 failures; forms carry CSRF tokens; sessions expire.
+- **Least privilege:** the page runs as its own small service under the `tomoshibi` user. Wi-Fi changes go through a narrow polkit rule that lets that user manage NetworkManager connections, nothing broader; it never runs as root.
+- **Plain HTTP only where it's safe:** on the hotspot (WPA2-encrypted, password shown only on the device's screen) and over Tailscale (encrypted end to end). No unencrypted access over the home network.
+
+### Never strand the device
+- **Wi-Fi changes are tried before the old network is forgotten.** The device joins the new network while keeping the old profile. If it can't connect and reach the internet within 2 minutes, it **reverts automatically**, like a screen-resolution change, and the page says what went wrong. A mistyped password at someone's house shouldn't mean a trip there.
+- **API keys and Slack tokens are tested before they're saved.** A bad key is rejected with a clear message, and the working one stays.
+- **Every change is logged** (what changed, when, from where), and the previous config is kept so **Roll back config** can undo the last change.
+- The CLI setup wizard (§10a) and this page write config through the **same code**, so they can't disagree, and both validate the same way.
+
+### Build
+Python, like the rest of the project: a small web framework serving pages rendered on the device, with only light JavaScript in the browser (the Wi-Fi scan list, test buttons). No separate front-end build. Large tap targets and plain wording, because it will often be used on a phone, by someone who isn't a developer.
 
 ## 11. Open-source packaging
 
@@ -876,7 +917,7 @@ tomoshibi-enclosure/
 | **3 – Remind** | SQLite events, scheduler, acknowledgments, morning greeting, caregiver edit path | Reminders fire with Wi-Fi unplugged; Mom adds one without help |
 | **3a – Family Slack** | Slack app (Socket Mode), allowlist, outbound messages with confirmation, inbound classification (message / event / note), inbox delivery + receipts, outbox retry, alerts | "We're visiting Saturday at 2" in Slack → Dad hears about it at the morning greeting; "Tell David hi" → arrives as a DM |
 | **3b – Knowledge pipeline** | `ingest` / `review` / `kb push`, timeline, knowledge-gap and `remember` loops, reminiscence prompts | A recorded story from Mom becomes approved wiki facts the device can talk about |
-| **4 – Offline brain & hardening** | Connectivity monitor + offline icon, local intent matcher, local LLM fallback, self-test, watchdog, overlay FS, heartbeat | Pull the network cable mid-conversation and it degrades gracefully; with the router unplugged every reminder fires and can be acknowledged and snoozed |
+| **4 – Offline brain & hardening** | Connectivity monitor + offline icon, local intent matcher, local LLM fallback, self-test, watchdog, overlay FS, heartbeat, **setup hotspot + setup page** (§10b) | Pull the network cable mid-conversation and it degrades gracefully; with the router unplugged every reminder fires and can be acknowledged and snoozed; change the Wi-Fi password and fix it from a phone via the setup hotspot, and a mistyped password reverts on its own |
 | **5 – Enclosure & live with it** | Fusion 360 enclosure in `tomoshibi-enclosure` (hw-rev-A), prompt tuning from real use, docs for other builders | Two weeks at my parents' with no intervention; repo is buildable by a stranger |
 
 ## 13. Open questions
