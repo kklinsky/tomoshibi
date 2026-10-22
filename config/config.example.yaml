@@ -10,6 +10,7 @@ speech:
   tts_model: kokoro-82m-int8
   tts_voice: am_fenrir
   tts_speed: 1.1                      # >1.0 is slower
+  name_pause: 0.3s                    # pause after his name when a sentence starts with it
 
 conversation:
   first_listen_window: 8s             # after a button press, how long to wait for speech

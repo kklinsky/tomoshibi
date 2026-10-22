@@ -5,6 +5,7 @@ Everything except today's context is stable from turn to turn, so it's sent as o
 block; the date and time go in a second, small block after the cache breakpoint.
 """
 
+import re
 from datetime import date, datetime
 from pathlib import Path
 
@@ -17,6 +18,15 @@ RULES = """\
 - You are speaking out loud through a small speaker. Answer in short, plain, spoken
   sentences: usually two to four. No lists, headings, markdown, emoji, or URLs.
 - Keep your first sentence short, so you can start speaking quickly.
+- You are talking to {person}: always say "you" and "your", never "{person}'s" or "he".
+- When you use {person}'s name, put it first, followed by a comma: "{person}, your sister
+  called." Don't end a sentence with the name or put it in the middle.
+- The people list notes each person's pronouns and how their name sounds. These are only
+  for you: use them, and never mention them ("Taylor called. They're doing well.", not
+  "Taylor uses they/them" or "Sharyn sounds like Sharon").
+- Use the pronouns listed for each person. If none are listed and
+  nothing (like "sister" or "son") tells you, use the person's name instead of guessing
+  he or she, and say "grandchild" rather than "grandson" or "granddaughter".
 - Be patient and warm. Answer a repeated question fully and kindly every time, and never
   say or suggest it was asked before.
 - You are not a person. Never claim to be human. Never imitate or role-play a real
@@ -102,17 +112,20 @@ def people_text(people_list: list[dict], today: date, subject_name: str | None =
         if p.get("called"):
             parts.append(f"(called {', '.join(p['called'])})")
         if p.get("pronounce"):
-            parts.append(f'(sounds like "{p["pronounce"]}"; may be written that way when heard)')
+            parts.append(f'(name sounds like "{p["pronounce"]}"; speech recognition may spell it that way)')
         if subject:
             parts[-1] += ":"
-            parts.append(_relationship(p, people, subject, subject_name))
+            parts.append(_gendered(_relationship(p, people, subject, subject_name), p.get("pronouns")))
+        # Pronouns are shown by example ("They live in Dallas") rather than labelled, so the
+        # AI uses them without announcing them.
+        say = _pronoun_phrases(p.get("pronouns"))
         details = []
         if (age := _age(p.get("born"), today)) is not None and not p.get("died"):
-            details.append(f"Age {age}, birthday {p['born']:%B} {p['born'].day}")
+            details.append(f"{say['age']} {age}, birthday {p['born']:%B} {p['born'].day}")
         if p.get("died"):
-            details.append(f"Died {p['died']}")
+            details.append(f"{say['died']} {p['died']}")
         if p.get("lives"):
-            details.append(f"Lives in {p['lives']}")
+            details.append(f"{say['lives']} {p['lives']}")
         if p.get("notes"):
             details.append(p["notes"])
         if p.get("guidance"):
@@ -120,6 +133,36 @@ def people_text(people_list: list[dict], today: date, subject_name: str | None =
         line = " ".join(parts) + (". " + ". ".join(d.rstrip(".") for d in details) + "." if details else "")
         lines.append(line)
     return "\n".join(lines)
+
+
+_GENDERED = {
+    "he": {"child-in-law": "son-in-law", "half-sibling": "half-brother", "grandchild": "grandson",
+           "child": "son", "sibling": "brother", "parent": "father", "spouse": "husband"},
+    "she": {"child-in-law": "daughter-in-law", "half-sibling": "half-sister", "grandchild": "granddaughter",
+            "child": "daughter", "sibling": "sister", "parent": "mother", "spouse": "wife"},
+}
+
+
+def _gendered(relationship: str, pronouns: str | None) -> str:
+    """"Bob's grandchild" -> "Bob's grandson" when the person's pronouns are he/him."""
+    words = _GENDERED.get((pronouns or "").split("/")[0].strip().lower())
+    if not words:
+        return relationship
+    pattern = re.compile(r"(?<![\w-])(" + "|".join(map(re.escape, words)) + r")(?![\w-])")
+    head, sep, tail = relationship.partition(" (")  # leave "(child of Karen)" alone
+    return pattern.sub(lambda m: words[m.group(1)], head, count=1) + sep + tail
+
+
+def _pronoun_phrases(pronouns: str | None) -> dict[str, str]:
+    """Openers for a person's details, written with their pronouns ("They live in") so the
+    AI follows the example; neutral ("Lives in") when pronouns aren't given."""
+    word = (pronouns or "").split("/")[0].strip().lower()
+    if word == "they":
+        return {"age": "They are", "died": "They died", "lives": "They live in"}
+    if word in ("he", "she"):
+        w = word.capitalize()
+        return {"age": f"{w} is", "died": f"{w} died", "lives": f"{w} lives in"}
+    return {"age": "Age", "died": "Died", "lives": "Lives in"}
 
 
 def persona_text(persona: dict) -> str:

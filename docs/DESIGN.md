@@ -415,6 +415,7 @@ people:
 | `parents`, `spouse` (+ `married`, `divorced`) | The only relationships stored. Placeholder ids (e.g. `bobs_father`) are allowed for ancestors who aren't otherwise described |
 | `relationship_override` | Friends, neighbors, caregivers, his doctor: anyone who doesn't fit the tree, or a relationship the family wants described its own way ("like a brother to him") |
 | `called` | What he actually calls them. Helps speech recognition and matching |
+| `pronouns` | e.g. `they/them`. Tomo always uses these; without them the AI guesses from the name and the `called` entries |
 | `pronounce` | How the first name sounds, when the spelling misleads the voice (e.g. Ami → "Amy"). Applied only to speech; also tells the AI that speech recognition may write it that way. Nicknames and other words go in `data/pronunciations.yaml` |
 | `born`, `died` | **Ages are calculated when asked, never stored.** Birthdays and death anniversaries are derived from these |
 | `photo`, `lives`, `notes` | Shown on screen / used in conversation |
