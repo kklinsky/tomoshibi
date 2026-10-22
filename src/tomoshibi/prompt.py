@@ -129,11 +129,14 @@ def persona_text(persona: dict) -> str:
     return "\n".join(lines)
 
 
-def profile_text(profile: dict) -> str:
+def profile_text(profile: dict, subject: dict | None = None, today: date | None = None) -> str:
     person = profile.get("call_him") or profile.get("name") or "them"
     lines = [f"# About {person}"]
     if profile.get("name"):
         lines.append(f"Full name: {profile['name']}. Call them {person}.")
+    born = (subject or {}).get("born")
+    if isinstance(born, date):
+        lines.append(f"Birthday: {born:%B} {born.day}, {born.year} (age {_age(born, today or date.today())}).")
     if profile.get("hometown"):
         lines.append(f"Hometown: {profile['hometown']}.")
     if profile.get("location"):
@@ -159,7 +162,7 @@ def stable_prompt(data_dir: Path | None = None, config: dict | None = None) -> s
         RULES.format(person=person, caregiver=caregiver),
         persona_text(persona),
         about.render(persona, profile, people_list, config),
-        profile_text(profile),
+        profile_text(profile, next((p for p in people_list if p.get("is_subject")), None)),
         people_text(people_list, date.today(), person),
     ])
 

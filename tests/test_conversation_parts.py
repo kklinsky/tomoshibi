@@ -69,3 +69,8 @@ def test_people_ages():
     lines = prompt.people_text([{"id": "a", "is_subject": True}, {"id": "b", "name": "Bea", "born": date(2000, 12, 31)}],
                                date(2026, 10, 22))
     assert "Age 25, birthday December 31" in lines
+
+
+def test_profile_includes_the_persons_own_birthday():
+    text = prompt.profile_text({"call_him": "Bob"}, {"id": "bob", "born": date(1944, 3, 12)}, date(2026, 10, 22))
+    assert "Birthday: March 12, 1944 (age 82)." in text
