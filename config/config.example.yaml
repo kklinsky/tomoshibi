@@ -2,6 +2,9 @@
 # Secrets (API keys, Slack tokens) go in /etc/tomoshibi/secrets.env, not here.
 # Most settings are not used yet; they mirror docs/DESIGN.md so the shape is settled early.
 
+audio:
+  device: "plughw:CARD=USB"           # ALSA device for the USB speakerphone
+
 speech:
   stt_model: whisper-base-en          # name from models.lock
   tts_model: kokoro-82m-int8
@@ -9,6 +12,7 @@ speech:
   tts_speed: 1.1                      # >1.0 is slower
 
 conversation:
+  first_listen_window: 8s             # after a button press, how long to wait for speech
   follow_up_window: 10s
   end_of_speech_silence: 1.5s
 
@@ -22,7 +26,7 @@ quiet_hours:
   end: "07:00"
 
 llm:
-  primary:  { provider: anthropic, model: claude-haiku-5-5 }
+  primary:  { provider: anthropic, model: claude-haiku-5-5, effort: low }   # low effort: speech starts sooner
   fallback: { provider: ollama, model: "qwen2.5:1.5b", base_url: "http://localhost:11434" }
 
 internet:

@@ -1,0 +1,71 @@
+from datetime import date, datetime
+from pathlib import Path
+
+import yaml
+
+from tomoshibi import config, keys, prompt
+from tomoshibi.sentences import SentenceSplitter
+from tomoshibi.vad import Endpointer
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_splitter_streams_sentences_and_flushes_the_rest():
+    s = SentenceSplitter()
+    out = []
+    for chunk in ["It's Sat", "urday, Bob. Karen is com", "ing at two! Shall I", " remind you"]:
+        out += s.feed(chunk)
+    assert out == ["It's Saturday, Bob.", "Karen is coming at two!"]
+    assert s.flush() == ["Shall I remind you"]
+
+
+def test_splitter_cuts_a_long_first_sentence_at_a_comma():
+    s = SentenceSplitter()
+    text = "Well, that's a lovely question to ask on a sunny afternoon, and I'd be glad to tell you about it. "
+    first = s.feed(text)[0]
+    assert first.endswith(",") and len(first) < 80
+
+
+def test_endpointer_starts_then_ends_after_silence():
+    ep = Endpointer(end_silence=0.32, wait_for_speech=5)  # 10 frames of silence
+    states = [ep.update(p) for p in [0.1, 0.9, 0.9, 0.9] + [0.0] * 10]
+    assert states[3] == "speaking"
+    assert states[-1] == "done"
+
+
+def test_endpointer_times_out_without_speech():
+    ep = Endpointer(wait_for_speech=0.32)
+    assert [ep.update(0.0) for _ in range(10)][-1] == "timeout"
+
+
+def test_key_event_parsing():
+    data = keys.EVENT.pack(0, 0, keys.EV_KEY, keys.KEY_SPACE, keys.PRESSED)
+    assert keys.parse(data + b"\0\0") == [(keys.EV_KEY, keys.KEY_SPACE, keys.PRESSED)]
+
+
+def test_config_seconds():
+    assert config.seconds("10s", 0) == 10
+    assert config.seconds("5m", 0) == 300
+    assert config.seconds("1.5s", 0) == 1.5
+    assert config.seconds(None, 7) == 7
+
+
+def test_stable_prompt_from_example_family():
+    conf = yaml.safe_load((ROOT / "config" / "config.example.yaml").read_text(encoding="utf-8"))
+    text = prompt.stable_prompt(ROOT / "examples" / "data", conf)
+    assert text.startswith("# Rules")
+    assert "Karen Smith (called Karen): Bob's child" in text
+    assert "Emma Smith: Bob's grandchild (child of Karen)" in text
+    assert "Mike Smith: Bob's child-in-law (married to Karen)" in text
+    assert "{" not in text
+
+
+def test_today_context():
+    text = prompt.today_context(datetime(2026, 10, 17, 14, 5))
+    assert "Saturday, October 17, 2026, 2:05 PM (Saturday afternoon)" in text
+
+
+def test_people_ages():
+    lines = prompt.people_text([{"id": "a", "is_subject": True}, {"id": "b", "name": "Bea", "born": date(2000, 12, 31)}],
+                               date(2026, 10, 22))
+    assert "Age 25, birthday December 31" in lines

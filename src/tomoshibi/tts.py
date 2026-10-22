@@ -20,6 +20,12 @@ class PiperTTS:
         with wave.open(str(out_path), "wb") as wav_file:
             self._voice.synthesize_wav(text, wav_file, syn_config=self._config)
 
+    def synthesize(self, text: str) -> tuple[np.ndarray, int]:
+        """int16 mono samples and their sample rate."""
+        chunks = [c.audio_int16_array for c in self._voice.synthesize(text, syn_config=self._config)]
+        audio = np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.int16)
+        return audio, self._voice.config.sample_rate
+
 
 class KokoroTTS:
     """Kokoro-82M via kokoro-onnx. More natural than Piper, and slower.
@@ -43,9 +49,13 @@ class KokoroTTS:
         # Same meaning as Piper's length_scale: > 1.0 speaks more slowly.
         self._speed = 1.0 / length_scale
 
-    def synthesize_to_wav(self, text: str, out_path: Path) -> None:
+    def synthesize(self, text: str) -> tuple[np.ndarray, int]:
+        """int16 mono samples and their sample rate."""
         audio, rate = self._kokoro.create(text, voice=self._style, speed=self._speed)
-        pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+        return (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16), rate
+
+    def synthesize_to_wav(self, text: str, out_path: Path) -> None:
+        pcm, rate = self.synthesize(text)
         with wave.open(str(out_path), "wb") as wav_file:
             wav_file.setnchannels(1)
             wav_file.setsampwidth(2)

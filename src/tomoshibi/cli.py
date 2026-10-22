@@ -32,6 +32,12 @@ def main(argv: list[str] | None = None) -> int:
     transcribe.add_argument("wav", type=Path)
     transcribe.add_argument("--model", help="STT model name from models.lock")
 
+    chat = sub.add_parser("chat", help="talk to Tomoshibi (a keyboard key stands in for the button)")
+    chat.add_argument("--type", action="store_true", help="type questions instead of speaking")
+    chat.add_argument("--stt", help="STT model name from models.lock")
+    chat.add_argument("--tts", help="TTS model name from models.lock")
+    chat.add_argument("--config", type=Path, help="path to config.yaml")
+
     bench = sub.add_parser("bench", help="benchmarks")
     bench_sub = bench.add_subparsers(dest="bench_command", required=True)
     bench_speech = bench_sub.add_parser("speech", help="TTS -> STT round trip with timings")
@@ -91,6 +97,21 @@ def main(argv: list[str] | None = None) -> int:
         text = stt.load(spec).transcribe(args.wav)
         print(text)
         print(f"({spec.name}, {time.perf_counter() - t0:.2f} s including model load)")
+        return 0
+
+    if args.command == "chat":
+        from tomoshibi import config as cfg
+        from tomoshibi.conversation import Conversation
+        from tomoshibi.llm import ProviderError
+
+        conf = cfg.load(args.config)
+        try:
+            Conversation(conf, lock_path, typed=args.type, stt_name=args.stt, tts_name=args.tts).run()
+        except ProviderError as e:
+            print(f"Can't start: {e}")
+            return 2
+        except KeyboardInterrupt:
+            pass
         return 0
 
     if args.command == "bench":

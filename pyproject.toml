@@ -5,6 +5,7 @@ description = "A simple, friendly voice companion for older adults living with m
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "anthropic>=1.17,<2",  # 2.x (API version 2026-10-21) is brand new; move deliberately
     "faster-whisper>=1.1",
     "huggingface-hub>=0.24",
     "kokoro-onnx>=0.6.1",

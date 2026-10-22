@@ -101,3 +101,11 @@ files = [
     "en/en_US/lessac/medium/en_US-lessac-medium.onnx",
     "en/en_US/lessac/medium/en_US-lessac-medium.onnx.json",
 ]
+
+# Silero VAD (MIT): detects when someone starts and stops talking. 16 kHz, 512-sample frames.
+[models.silero-vad]
+kind = "vad"
+engine = "silero"
+repo = "onnx-community/silero-vad"
+revision = "e71cae966052b992a7eca6b17738916ce0eca4ec"
+files = ["onnx/model.onnx"]
