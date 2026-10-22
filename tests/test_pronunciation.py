@@ -9,11 +9,14 @@ def test_people_pronunciations(tmp_path: Path):
     (tmp_path / "people.yaml").write_text(yaml.safe_dump({"people": [
         {"id": "ami", "name": "Ami Stevens", "called": ["Ami", "your daughter"], "pronounce": "Amy"},
         {"id": "bob", "name": "Bob"},
+        {"id": "hisako", "name": "Hisako", "called": ["Hisako", "Tommi"], "pronounce": "Hee-sah-ko"},
     ]}), encoding="utf-8")
     (tmp_path / "pronunciations.yaml").write_text("Tommi: Tommy\n", encoding="utf-8")
     p = Pronouncer(load(tmp_path))
     assert p.apply("Ami is coming. Tell ami and Tommi hello, Bob.") == "Amy is coming. Tell Amy and Tommy hello, Bob."
     assert p.apply("Miami is warm.") == "Miami is warm."  # whole words only
+    # A person's pronunciation covers their first name, not their nicknames.
+    assert p.apply("Hisako, also called Tommi.") == "Hee-sah-ko, also called Tommy."
 
 
 def test_no_pronunciations_is_a_no_op(tmp_path: Path):

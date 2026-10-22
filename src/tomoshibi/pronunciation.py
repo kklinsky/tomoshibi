@@ -2,8 +2,9 @@
 
 The text the AI writes (and the screen shows) keeps the real spelling; only the words sent
 to the voice change. Sources:
-- `pronounce:` on a person in people.yaml, e.g. Ami -> "Amy"
-- data/pronunciations.yaml for anything else: {"Tommi": "Tommy", "Naples": "Nay-pulls"}
+- `pronounce:` on a person in people.yaml: how their first name sounds, e.g. Ami -> "Amy"
+- data/pronunciations.yaml for anything else, including nicknames:
+  {"Tommi": "Tommy", "Naples": "Nay-pulls"}
 """
 
 import re
@@ -26,11 +27,12 @@ def load(data_dir: Path) -> dict[str, str]:
         say = person.get("pronounce")
         if not say:
             continue
-        first = str(person.get("name", "")).split()[0] if person.get("name") else None
-        for written in [first, *(person.get("called") or [])]:
-            # Only plain one-word names; "your daughter" etc. are spoken as written.
-            if written and " " not in written and written.lower() != say.lower():
-                words[written] = say
+        # `pronounce` is how the first name sounds. Other names in `called` (nicknames,
+        # "your wife") are different words, so they stay as written unless listed in
+        # pronunciations.yaml.
+        first = str(person.get("name", "")).split()[0] if person.get("name") else ""
+        if first and first.lower() != say.lower():
+            words[first] = say
     for written, say in (_yaml(data_dir / "pronunciations.yaml") or {}).items():
         words[str(written)] = str(say)
     return words
