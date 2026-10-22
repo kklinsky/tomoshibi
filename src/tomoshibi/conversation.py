@@ -15,10 +15,11 @@ from pathlib import Path
 
 import numpy as np
 
-from tomoshibi import audio, llm, models, paths, prompt
+from tomoshibi import audio, llm, models, paths, prompt, pronunciation
 from tomoshibi import config as cfg
 from tomoshibi import stt as stt_mod
 from tomoshibi import tts as tts_mod
+from tomoshibi.pronunciation import Pronouncer
 from tomoshibi.sentences import SentenceSplitter
 from tomoshibi.vad import Endpointer, SileroVAD
 from tomoshibi.weather import US_STATES as _US
@@ -64,6 +65,7 @@ class Conversation:
         cfg.load_secrets()
         self.provider = llm.from_config(conf)
         self.stable = prompt.stable_prompt(paths.data_dir(), conf)
+        self.pronouncer = Pronouncer(pronunciation.load(paths.data_dir()))
         self.tools, self.web_search = self._lookups(conf)
         if self.tools or self.web_search:
             status("lookups on: " + ", ".join([t.name for t in self.tools]
@@ -240,6 +242,6 @@ class Conversation:
             return
         if not self.speaker.busy:
             status("speaking: mouth moving, light off")
-        pcm, rate = self.tts.synthesize(sentence)
+        pcm, rate = self.tts.synthesize(self.pronouncer.apply(sentence))
         self.speaker.play(pcm, rate)
         spoken.append(sentence)

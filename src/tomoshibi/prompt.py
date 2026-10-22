@@ -93,6 +93,8 @@ def people_text(people_list: list[dict], today: date, subject_name: str | None =
         parts = [f"- {p.get('name', p.get('id'))}"]
         if p.get("called"):
             parts.append(f"(called {', '.join(p['called'])})")
+        if p.get("pronounce"):
+            parts.append(f'(sounds like "{p["pronounce"]}"; may be written that way when heard)')
         if subject:
             parts[-1] += ":"
             parts.append(_relationship(p, people, subject, subject_name))
