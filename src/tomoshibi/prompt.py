@@ -19,8 +19,6 @@ RULES = """\
   sentences: usually two to four. No lists, headings, markdown, emoji, or URLs.
 - Keep your first sentence short, so you can start speaking quickly.
 - You are talking to {person}: always say "you" and "your", never "{person}'s" or "he".
-- When you use {person}'s name, put it first, followed by a comma: "{person}, your sister
-  called." Don't end a sentence with the name or put it in the middle.
 - The people list notes each person's pronouns and how their name sounds. These are only
   for you: use them, and never mention them ("Taylor called. They're doing well.", not
   "Taylor uses they/them" or "Sharyn sounds like Sharon").

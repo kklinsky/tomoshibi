@@ -66,16 +66,6 @@ class Conversation:
         self.provider = llm.from_config(conf)
         self.stable = prompt.stable_prompt(paths.data_dir(), conf)
         self.pronouncer = Pronouncer(pronunciation.load(paths.data_dir()))
-        profile = prompt._yaml(paths.data_dir() / "profile.yaml")
-        self.name_pause = cfg.seconds(cfg.get(conf, "speech.name_pause"), 0.3)
-        person = profile.get("call_him") or profile.get("name") or ""
-        self.person = person
-        self._name_first = re.compile(rf"^({re.escape(person)}),\s+(.+)$", re.DOTALL) if person else None
-        # "Sharyn is your sister, Arnold." and "Taylor is your grandchild, Arnold, in Dallas."
-        # are spoken as "Arnold, Sharyn is your sister." / "Arnold, Taylor is your grandchild,
-        # in Dallas."
-        self._name_last = re.compile(rf"^(.+?),\s+({re.escape(person)})([.!?]+)$", re.DOTALL) if person else None
-        self._name_mid = re.compile(rf"^(.+?),\s+{re.escape(person)},\s+(.+)$", re.DOTALL) if person else None
         self.tools, self.web_search = self._lookups(conf)
         if self.tools or self.web_search:
             status("lookups on: " + ", ".join([t.name for t in self.tools]
@@ -257,18 +247,4 @@ class Conversation:
         spoken.append(sentence)
 
     def _synthesize(self, sentence: str) -> tuple[np.ndarray, int]:
-        """Speak a sentence; when it opens with his name ("Arnold, ..."), say the name on its
-        own and leave a short pause before the rest, which sounds warmer and clearer."""
-        if self._name_last and (last := self._name_last.match(sentence)):
-            sentence = f"{last.group(2)}, {last.group(1)}{last.group(3)}"
-        elif self._name_mid and (mid := self._name_mid.match(sentence)):
-            sentence = f"{self.person}, {mid.group(1)}, {mid.group(2)}"
-        match = self._name_first.match(sentence) if self._name_first and self.name_pause > 0 else None
-        if not match:
-            return self.tts.synthesize(self.pronouncer.apply(sentence))
-        name_pcm, rate = self.tts.synthesize(self.pronouncer.apply(match.group(1) + ","))
-        rest_pcm, rest_rate = self.tts.synthesize(self.pronouncer.apply(match.group(2)))
-        if rest_rate != rate:
-            return self.tts.synthesize(self.pronouncer.apply(sentence))
-        gap = np.zeros(int(rate * self.name_pause), dtype=np.int16)
-        return np.concatenate([name_pcm, gap, rest_pcm]), rate
+        return self.tts.synthesize(self.pronouncer.apply(sentence))

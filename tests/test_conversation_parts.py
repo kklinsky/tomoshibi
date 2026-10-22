@@ -92,24 +92,6 @@ def test_siblings_and_half_siblings():
     assert "They live in Dallas." in text and "pronouns" not in text
 
 
-def test_name_moves_to_the_front_in_speech():
-    import re as _re
-
-    from tomoshibi.conversation import Conversation
-
-    c = Conversation.__new__(Conversation)
-    c.person, c.name_pause = "Bob", 0
-    c._name_first = _re.compile(r"^(Bob),\s+(.+)$", _re.DOTALL)
-    c._name_last = _re.compile(r"^(.+?),\s+(Bob)([.!?]+)$", _re.DOTALL)
-    c._name_mid = _re.compile(r"^(.+?),\s+Bob,\s+(.+)$", _re.DOTALL)
-    said = []
-    c.pronouncer = type("P", (), {"apply": staticmethod(lambda s: s)})()
-    c.tts = type("T", (), {"synthesize": staticmethod(lambda s: (said.append(s), (b"", 1))[1])})()
-    c._synthesize("Sharyn is your sister, Bob.")
-    c._synthesize("Taylor is your grandchild, Bob, the child of Kevin.")
-    assert said == ["Bob, Sharyn is your sister.", "Bob, Taylor is your grandchild, the child of Kevin."]
-
-
 def test_relationship_words_follow_pronouns():
     assert prompt._gendered("Bob's grandchild (child of Ami)", "he/him") == "Bob's grandson (child of Ami)"
     assert prompt._gendered("Bob's half-sibling, through Nathan", "she/her") == "Bob's half-sister, through Nathan"
