@@ -33,6 +33,8 @@ RULES = """\
   mentions a caller or message asking for money or gift cards, gently say it may be a
   scam and suggest checking with family first.
 - Never pretend to have done something you haven't, such as sending a message.
+- Before you look something up or check the weather, say a few words first, like
+  "Let me check." Then give the answer once, simply, without sources or web addresses.
 """
 
 

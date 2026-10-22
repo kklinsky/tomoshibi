@@ -21,6 +21,7 @@ from tomoshibi import stt as stt_mod
 from tomoshibi import tts as tts_mod
 from tomoshibi.sentences import SentenceSplitter
 from tomoshibi.vad import Endpointer, SileroVAD
+from tomoshibi.weather import US_STATES as _US
 
 PRE_ROLL_FRAMES = 10  # keep ~0.3 s before speech was detected, so first syllables aren't lost
 MAX_HISTORY = 24      # messages kept for context within the day
@@ -63,8 +64,35 @@ class Conversation:
         cfg.load_secrets()
         self.provider = llm.from_config(conf)
         self.stable = prompt.stable_prompt(paths.data_dir(), conf)
+        self.tools, self.web_search = self._lookups(conf)
+        if self.tools or self.web_search:
+            status("lookups on: " + ", ".join([t.name for t in self.tools]
+                                              + (["web_search"] if self.web_search else [])))
         self.history: list[dict] = []
         self.pressed = threading.Event()
+
+    def _lookups(self, conf: dict):
+        """Weather and web search, each only if switched on in config (docs/DESIGN.md §8a)."""
+        profile = prompt._yaml(paths.data_dir() / "profile.yaml")
+        home = cfg.get(conf, "internet.weather.location") or profile.get("location") or ""
+        tools = []
+        if cfg.get(conf, "internet.weather.enabled", False):
+            from tomoshibi.weather import Weather
+
+            tools.append(Weather(home, cfg.get(conf, "internet.weather.units", "fahrenheit")).tool())
+        web = None
+        if cfg.get(conf, "internet.web_search.enabled", False) and hasattr(self.provider, "web_search_tool"):
+            city, _, region = home.partition(",")
+            location = {k: v for k, v in {"city": city.strip(), "region": region.strip(),
+                                          "country": "US" if region.strip().upper() in _US else None,
+                                          "timezone": profile.get("timezone")}.items() if v}
+            web = self.provider.web_search_tool(
+                max_uses=int(cfg.get(conf, "internet.web_search.max_searches_per_turn", 2)),
+                user_location=location or None,
+                allowed_domains=cfg.get(conf, "internet.web_search.allowed_domains") or None,
+                blocked_domains=cfg.get(conf, "internet.web_search.blocked_domains") or None,
+            )
+        return tools, web
 
     # --- the button -------------------------------------------------------------------
     def press(self) -> None:
@@ -160,7 +188,8 @@ class Conversation:
         splitter = SentenceSplitter()
         interrupted = False
         try:
-            for delta in self.provider.stream_reply(self.stable, prompt.today_context(), self.history):
+            for delta in self.provider.stream_reply(self.stable, prompt.today_context(), self.history,
+                                                    tools=self.tools, web_search=self.web_search):
                 if first_token is None:
                     first_token = time.perf_counter() - t0
                 for sentence in splitter.feed(delta):
@@ -190,9 +219,15 @@ class Conversation:
             self.speaker.wait()
             status("interrupted by the button")
         reply = " ".join(spoken).strip() or "(no reply)"
-        self.history.append({"role": "assistant", "content": reply})
+        turn = getattr(self.provider, "last_turn", None)
+        if turn and not interrupted:
+            self.history.extend(turn)  # includes any lookups, so later turns know how it knew
+        else:
+            self.history.append({"role": "assistant", "content": reply})
         del self.history[:-MAX_HISTORY]
-        if self.history and self.history[0]["role"] != "user":
+        # The history must start with something the person said, not a tool result.
+        while self.history and not (self.history[0]["role"] == "user"
+                                    and isinstance(self.history[0]["content"], str)):
             self.history.pop(0)
         print(f"  tomo: {reply}", flush=True)
         if first_token is not None:

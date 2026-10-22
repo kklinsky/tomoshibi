@@ -15,7 +15,7 @@ from tomoshibi import paths
 TEMPLATE = "about_me.md"
 
 # Features that exist in this version of the software. Add a name here when it ships.
-BUILT: frozenset[str] = frozenset({"conversation", "people"})
+BUILT: frozenset[str] = frozenset({"conversation", "people", "web_search", "weather", "news"})
 
 ALWAYS_CAN = [
     "Have a friendly conversation about almost anything, as often as {person} likes.",
@@ -75,7 +75,9 @@ def _enabled(config: dict, *keys: str) -> bool:
 
 
 def _switched_on(config: dict, feature: str) -> bool:
-    if feature in ("web_search", "weather", "news"):
+    if feature == "news":  # headlines come through web search
+        return _enabled(config, "internet", "news") and _enabled(config, "internet", "web_search")
+    if feature in ("web_search", "weather"):
         return _enabled(config, "internet", feature)
     return True
 

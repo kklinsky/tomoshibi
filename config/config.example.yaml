@@ -32,7 +32,7 @@ llm:
 internet:
   web_search: { enabled: true, backend: brave, max_searches_per_turn: 2, safe_search: strict }
   fetch_page: { enabled: true }
-  weather:    { enabled: true }
+  weather:    { enabled: true, units: fahrenheit }   # location defaults to profile.yaml's
   news:       { enabled: true }
 
 messaging:
