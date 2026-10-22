@@ -69,7 +69,15 @@ def _relationship(person: dict, people: dict[str, dict], subject: str, subject_n
             return f"{name}'s grandchild (child of {_first(people[parent])})"
     if pid in (subj.get("parents") or []):
         return f"{name}'s parent"
-    if parents and set(parents) & set(subj.get("parents") or []):
+    subj_parents = set(subj.get("parents") or [])
+    shared = set(parents) & subj_parents
+    if shared:
+        # Both with two parents listed but only one in common: a half-sibling.
+        if len(shared) == 1 and len(set(parents)) == 2 and len(subj_parents) == 2:
+            through = people.get(next(iter(shared)), {})
+            given = str(through.get("name") or "").split()
+            via = f", through {given[0]}" if given else ""
+            return f"{name}'s half-sibling{via}"
         return f"{name}'s sibling"
     spouse = people.get(person.get("spouse") or "", {})
     if subject in (spouse.get("parents") or []):

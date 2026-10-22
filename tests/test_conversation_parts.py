@@ -74,3 +74,17 @@ def test_people_ages():
 def test_profile_includes_the_persons_own_birthday():
     text = prompt.profile_text({"call_him": "Bob"}, {"id": "bob", "born": date(1944, 3, 12)}, date(2026, 10, 22))
     assert "Birthday: March 12, 1944 (age 82)." in text
+
+
+def test_siblings_and_half_siblings():
+    people = [
+        {"id": "bob", "is_subject": True, "parents": ["nate", "ruth"]},
+        {"id": "nate", "name": "Nathan", "called": ["your father"]},
+        {"id": "ruth", "name": "Ruth"},
+        {"id": "sue", "name": "Sue", "parents": ["nate", "ruth"]},
+        {"id": "rob", "name": "Roben", "parents": ["nate", "robs_mother"]},
+    ]
+    text = prompt.people_text(people, date(2026, 10, 22), "Bob")
+    assert "Nathan (called your father): Bob's parent" in text
+    assert "Sue: Bob's sibling" in text
+    assert "Roben: Bob's half-sibling, through Nathan" in text
