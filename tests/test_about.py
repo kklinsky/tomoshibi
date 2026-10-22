@@ -9,12 +9,17 @@ EXAMPLES = ROOT / "examples" / "data"
 CONFIG = yaml.safe_load((ROOT / "config" / "config.example.yaml").read_text(encoding="utf-8"))
 
 
-def render(config=CONFIG):
+ALL_BUILT = frozenset({"conversation", "people", "calendar", "reminders", "memories",
+                       "web_search", "weather", "news", "messaging"})
+
+
+def render(config=CONFIG, built=ALL_BUILT):
     return about.render(
         yaml.safe_load((EXAMPLES / "persona.yaml").read_text(encoding="utf-8")),
         yaml.safe_load((EXAMPLES / "profile.yaml").read_text(encoding="utf-8")),
         yaml.safe_load((EXAMPLES / "people.yaml").read_text(encoding="utf-8"))["people"],
         config,
+        built,
     )
 
 
@@ -49,3 +54,12 @@ def test_template_has_no_family_names():
     template = (ROOT / "src" / "tomoshibi" / "prompts" / "about_me.md").read_text(encoding="utf-8")
     for name in ("Bob", "Carol", "David", "Karen", "Mike", "Emma"):
         assert name not in template
+
+
+def test_never_claims_features_that_are_not_built():
+    text = render(built=frozenset({"conversation", "people"}))
+    can, cannot = text.split("## What you can do")[1].split("## What you cannot do")
+    for claim in ("weather", "internet", "reminders", "messages to"):
+        assert claim not in can.lower(), claim
+    assert "Check the weather." in cannot
+    assert "Send messages to anyone." in cannot

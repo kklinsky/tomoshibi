@@ -1,8 +1,8 @@
 """Builds the "about me" part of the system prompt (docs/DESIGN.md §9b).
 
 The template lives in the public repo and holds no family details; names come from the
-family's private data files and capabilities come from the live config, so what the
-device says about itself always matches how it is actually set up.
+family's private data files. An ability is listed only when it is both built (BUILT) and
+switched on in the config, so the device never claims something it can't do.
 """
 
 from importlib import resources
@@ -14,15 +14,31 @@ from tomoshibi import paths
 
 TEMPLATE = "about_me.md"
 
+# Features that exist in this version of the software. Add a name here when it ships.
+BUILT: frozenset[str] = frozenset({"conversation", "people"})
+
 ALWAYS_CAN = [
     "Have a friendly conversation about almost anything, as often as {person} likes.",
     "Tell {person} the day, date and time.",
-    "Tell {person} what's happening today and in the coming days, from the family's calendar.",
-    "Give spoken reminders at the right time, for pills, meals, visits and appointments.",
     "Talk about the people in {person}'s life: who they are and how they're related.",
-    "Talk about {person}'s life story and memories that the family has shared with you.",
-    "Remember what you talked about earlier today.",
+    "Remember what you talked about earlier in this conversation.",
 ]
+
+# feature -> (what to say it can do, what to say it can't do)
+OPTIONAL = {
+    "calendar": ("Tell {person} what's happening today and in the coming days, from the family's calendar.",
+                 "Check {person}'s calendar or schedule."),
+    "reminders": ("Give spoken reminders at the right time, for pills, meals, visits and appointments.",
+                  "Set or give reminders."),
+    "memories": ("Talk about {person}'s life story and memories that the family has shared with you.",
+                 None),
+    "web_search": ("Look things up on the internet, such as news, sports results and when events are on.",
+                   ("Look things up on the internet. You answer from what you already know, "
+                    "which may be out of date.")),
+    "weather": ("Tell {person} today's weather and the forecast.",
+                "Check the weather."),
+    "news": ("Share a few of today's news headlines.", "Check today's news."),
+}
 
 ALWAYS_CANNOT = [
     "Make or answer phone calls.",
@@ -58,19 +74,23 @@ def _enabled(config: dict, *keys: str) -> bool:
     return bool(node.get("enabled")) if isinstance(node, dict) else bool(node)
 
 
-def capabilities(config: dict, people: list[dict]) -> tuple[list[str], list[str]]:
+def _switched_on(config: dict, feature: str) -> bool:
+    if feature in ("web_search", "weather", "news"):
+        return _enabled(config, "internet", feature)
+    return True
+
+
+def capabilities(config: dict, people: list[dict],
+                 built: frozenset[str] = BUILT) -> tuple[list[str], list[str]]:
     can, cannot = list(ALWAYS_CAN), list(ALWAYS_CANNOT)
-    if _enabled(config, "internet", "web_search"):
-        can.append("Look things up on the internet, such as news, sports results and when events are on.")
-    else:
-        cannot.append("Look things up on the internet. You answer from what you already know.")
-    if _enabled(config, "internet", "weather"):
-        can.append("Tell {person} today's weather and the forecast.")
-    if _enabled(config, "internet", "news"):
-        can.append("Share a few of today's news headlines.")
+    for feature, (yes, no) in OPTIONAL.items():
+        if feature in built and _switched_on(config, feature):
+            can.append(yes)
+        elif no:
+            cannot.append(no)
     messaging = config.get("messaging") or {}
     names = [n for n in (_person_name(people, pid) for pid in messaging.get("contacts", [])) if n]
-    if messaging.get("enabled") and names:
+    if "messaging" in built and messaging.get("enabled") and names:
         can.append(
             f"Send short messages to {_join(names)}, and pass on messages they send. "
             "You always read a message back and check before sending it."
@@ -110,11 +130,12 @@ def _bullets(lines: list[str]) -> str:
     return "\n".join(f"- {line}" for line in lines)
 
 
-def render(persona: dict, profile: dict, people: list[dict], config: dict) -> str:
+def render(persona: dict, profile: dict, people: list[dict], config: dict,
+           built: frozenset[str] = BUILT) -> str:
     person = profile.get("call_him") or profile.get("name") or "your person"
     made_by = persona.get("made_by") or "your family"  # as said to the person, e.g. "your son David"
     caregiver = _person_name(people, profile.get("caregiver")) or "the family"
-    can, cannot = capabilities(config, people)
+    can, cannot = capabilities(config, people, built)
     values = {
         "name": persona.get("name") or "Tomoshibi",
         "person": person,
