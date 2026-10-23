@@ -122,3 +122,64 @@ def chime(rate: int = 24_000, pitch: float = 880.0, seconds: float = 0.18) -> np
         envelope = np.sin(np.pi * t / t[-1]) ** 2
         out.append(np.sin(2 * np.pi * f * t) * envelope * 0.25)
     return (np.concatenate(out) * 32767).astype(np.int16)
+
+
+# --- the reminder tune ---------------------------------------------------------------------
+# An original short melody in the spirit of Japanese railway platform chimes: bright,
+# bell-like and over in a few seconds. Composed for Tomoshibi, so it can be shared freely.
+# A family can use their own sound instead (reminders.tune in config).
+
+_NOTE = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+
+# (note, beats). One beat = 0.24 s. Rises, turns, and settles on the home note.
+STATION_TUNE = [
+    ("D6", 1), ("F#6", 1), ("A6", 1), ("B6", 2), ("A6", 1), ("F#6", 1),
+    ("E6", 2), ("A5", 1), ("C#6", 1), ("E6", 1), ("D6", 5),
+]
+
+
+def _freq(note: str) -> float:
+    name, octave = note[:-1], int(note[-1])
+    semitone = _NOTE[name[0]] + (1 if name.endswith("#") else -1 if name.endswith("b") else 0)
+    return 440.0 * 2 ** ((semitone - 9) / 12 + (octave - 4))
+
+
+def _bell(freq: float, seconds: float, rate: int) -> np.ndarray:
+    """A glockenspiel-like strike: a bright attack and inharmonic overtones that fade."""
+    t = np.arange(int(rate * seconds)) / rate
+    tone = np.zeros_like(t)
+    for ratio, level, decay in ((1.0, 1.0, 2.2), (2.76, 0.35, 4.5), (5.40, 0.12, 8.0), (2.0, 0.15, 3.0)):
+        if freq * ratio < rate / 2:
+            tone += level * np.sin(2 * np.pi * freq * ratio * t) * np.exp(-decay * t)
+    attack = np.minimum(1.0, t / 0.004)  # 4 ms, so the strike doesn't click
+    return tone * attack
+
+
+def station_tune(rate: int = 24_000, beat: float = 0.24, volume: float = 0.3) -> np.ndarray:
+    """The built-in reminder tune as int16 mono samples."""
+    ring = 1.6  # each note keeps ringing under the next, like a real bell
+    total = sum(b for _, b in STATION_TUNE) * beat + ring
+    out = np.zeros(int(rate * total))
+    pos = 0.0
+    for note, beats in STATION_TUNE:
+        start = int(rate * pos)
+        bell = _bell(_freq(note), beats * beat + ring, rate)
+        out[start:start + len(bell)] += bell[: len(out) - start]
+        pos += beats * beat
+    out *= volume / max(1e-9, np.abs(out).max())
+    fade = int(rate * 0.3)
+    out[-fade:] *= np.linspace(1, 0, fade)
+    return (out * 32767).astype(np.int16)
+
+
+def load_tune(path) -> tuple[np.ndarray, int]:
+    """A family's own reminder sound: a 16-bit WAV file (mono or stereo)."""
+    import wave
+
+    with wave.open(str(path), "rb") as w:
+        if w.getsampwidth() != 2:
+            raise ValueError(f"{path}: needs to be a 16-bit WAV file")
+        rate, channels = w.getframerate(), w.getnchannels()
+        samples = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+    return samples.reshape(-1, channels).mean(axis=1).astype(np.int16), rate
+

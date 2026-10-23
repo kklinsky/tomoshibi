@@ -70,6 +70,7 @@ class Conversation:
         self.provider = llm.from_config(conf)
         self.events = Events(paths.data_dir())
         self.reminder_listen = cfg.seconds(cfg.get(conf, "reminders.listen_window"), 30)
+        self.reminder_tune = self._load_tune(cfg.get(conf, "reminders.tune", "station"))
         self._last_talk_day = None
         self._data_stamp = None
         self._reload_data()
@@ -181,7 +182,7 @@ class Conversation:
         words = [events_mod.reminder_words(r, self.person, now) for r in due]
         status("reminder: face wakes and looks up")
         print("  reminder: " + " ".join(words), flush=True)
-        self.speaker.play(audio.chime(), 24_000)
+        self.speaker.play(*self.reminder_tune)
         for sentence in words:
             self._speak(sentence, [])
         self.speaker.finish()
@@ -208,6 +209,19 @@ class Conversation:
         # Something else: carry on as a conversation, with the reminder in mind.
         self.session(first_text=reply, note="You just gave this reminder: " + " ".join(words))
         return True
+
+    def _load_tune(self, setting: str) -> tuple[np.ndarray, int]:
+        """The sound before a reminder: the built-in station tune, the short press chime,
+        or a family's own WAV file in their data folder (e.g. "sounds/our-tune.wav")."""
+        if setting in (None, "", "station"):
+            return audio.station_tune(), 24_000
+        if setting == "chime":
+            return audio.chime(), 24_000
+        try:
+            return audio.load_tune(paths.data_dir() / setting)
+        except (OSError, ValueError, EOFError) as e:
+            status(f"reminder tune {setting!r} couldn't be loaded ({e}); using the station tune")
+            return audio.station_tune(), 24_000
 
     def _say_now(self, sentence: str) -> None:
         self._speak(sentence, [])

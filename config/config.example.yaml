@@ -18,6 +18,7 @@ conversation:
   end_of_speech_silence: 1.5s
 
 reminders:
+  tune: station                       # station (built-in) | chime | a WAV file in the data folder
   listen_window: 30s
   retries: 2
   retry_interval: 5m

@@ -131,3 +131,27 @@ def test_death_dates_read_naturally():
     text = prompt.people_text(people, date(2026, 10, 22), "Bob")
     assert "Shelly: Bob's sister. She died in 2021." in text
     assert "Died on April 10, 2023." in text
+
+
+def test_reminder_tunes(tmp_path, monkeypatch):
+    import wave
+
+    import numpy as np
+
+    from tomoshibi import audio
+    from tomoshibi.conversation import Conversation
+
+    tune = audio.station_tune()
+    assert tune.dtype == np.int16 and 3.0 < len(tune) / 24_000 < 7.0
+    assert np.abs(tune).max() < 32767 * 0.35  # gentle, not full volume
+    path = tmp_path / "ours.wav"
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(44_100)
+        w.writeframes(np.zeros(4410 * 2, dtype=np.int16).tobytes())
+    monkeypatch.setenv("TOMOSHIBI_DATA_DIR", str(tmp_path))
+    c = Conversation.__new__(Conversation)
+    pcm, rate = c._load_tune("ours.wav")
+    assert rate == 44_100 and len(pcm) == 4410
+    assert c._load_tune("missing.wav")[1] == 24_000  # falls back to the station tune
