@@ -146,6 +146,8 @@ class Events:
             CREATE TABLE IF NOT EXISTS reminders (key TEXT PRIMARY KEY, state TEXT NOT NULL,
                 attempts INTEGER NOT NULL DEFAULT 0, last_attempt TEXT, snooze_until TEXT,
                 updated TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS expected (id INTEGER PRIMARY KEY, what TEXT NOT NULL,
+                at TEXT NOT NULL, said_at TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0);
         """)
         self.db.commit()
 
@@ -175,6 +177,38 @@ class Events:
                         (event_id, json.dumps(entry), datetime.now().isoformat(timespec="seconds")))
         self.db.commit()
         return event
+
+    # --- expected times ("back in 30 minutes") -----------------------------------------------
+    # Not appointments: no reminder is given. They're kept so "when will she be back?" can be
+    # answered, with the time left worked out fresh each time it's asked.
+    def expect(self, what: str, at: datetime, now: datetime | None = None) -> None:
+        now = now or datetime.now()
+        # A new estimate for the same thing replaces the old one.
+        self.db.execute("UPDATE expected SET done = 1 WHERE done = 0 AND lower(what) = lower(?)", (what,))
+        self.db.execute("INSERT INTO expected (what, at, said_at) VALUES (?, ?, ?)",
+                        (what, at.isoformat(timespec="minutes"), now.isoformat(timespec="minutes")))
+        self.db.commit()
+
+    def done(self, what: str) -> int:
+        """Mark matching expected times as done (e.g. "I'm back"). Returns how many."""
+        cur = self.db.execute("UPDATE expected SET done = 1 WHERE done = 0 AND lower(what) LIKE ?",
+                              (f"%{what.lower()}%",))
+        self.db.commit()
+        return cur.rowcount
+
+    def expected(self, now: datetime | None = None) -> list[dict]:
+        """Open expected times, with the time left (or how late), dropped 2 hours after."""
+        now = now or datetime.now()
+        out = []
+        for what, at, said in self.db.execute(
+                "SELECT what, at, said_at FROM expected WHERE done = 0 ORDER BY at"):
+            when = datetime.fromisoformat(at)
+            if now > when + timedelta(hours=2):
+                continue
+            minutes = round((when - now).total_seconds() / 60)
+            out.append({"what": what, "at": when.strftime("%I:%M %p").lstrip("0"),
+                        "minutes_left": minutes, "said_at": datetime.fromisoformat(said).strftime("%I:%M %p").lstrip("0")})
+        return out
 
     # --- schedule ----------------------------------------------------------------------
     def occurrences(self, start: date, days: int, today: date | None = None) -> list[Occurrence]:
@@ -316,7 +350,49 @@ def tools(events: "Events", people: list[dict], person: str):
         first = next((o for o in events.occurrences(day, 1) if o.event.id == event.id), None)
         return json.dumps({"added": first.describe() if first else event.title})
 
+    def note_expected(args: dict) -> str:
+        now = datetime.now()
+        try:
+            if args.get("minutes_from_now"):
+                at = now + timedelta(minutes=int(float(args["minutes_from_now"])))
+            elif args.get("at_time"):
+                at = datetime.combine(now.date(), _parse_time(args["at_time"]))
+                if at < now - timedelta(minutes=5):
+                    at += timedelta(days=1)
+            else:
+                return json.dumps({"error": "Give minutes_from_now or at_time."})
+        except ValueError as e:
+            return json.dumps({"error": str(e)})
+        events.expect(args["what"].strip(), at, now)
+        return json.dumps({"noted": args["what"].strip(), "at": at.strftime("%I:%M %p").lstrip("0")})
+
+    def clear_expected(args: dict) -> str:
+        return json.dumps({"cleared": events.done(args["what"].strip())})
+
     return [
+        Tool(
+            name="note_expected_time",
+            description=(
+                "Note when something is expected to happen today, from what someone just said: "
+                "someone going out and coming back ('back in 30 minutes'), a visitor or delivery "
+                "arriving, food in the oven. Save it right away, without a read-back, then confirm "
+                f"briefly. It lets you tell {person} how long is left whenever they ask. If it isn't "
+                "clear who is going out, ask who you're talking to first."),
+            input_schema={"type": "object", "properties": {
+                "what": {"type": "string", "description": "e.g. 'Hisako back from the store'"},
+                "minutes_from_now": {"type": "string", "description": "e.g. '30'"},
+                "at_time": {"type": "string", "description": "e.g. '15:45', if a clock time was given"},
+            }, "required": ["what"], "additionalProperties": False},
+            run=note_expected,
+        ),
+        Tool(
+            name="clear_expected_time",
+            description="Remove an expected time once it has happened, e.g. someone says they're back.",
+            input_schema={"type": "object", "properties": {
+                "what": {"type": "string", "description": "a word from it, e.g. 'Hisako'"},
+            }, "required": ["what"], "additionalProperties": False},
+            run=clear_expected,
+        ),
         Tool(
             name="get_schedule",
             description=("The family calendar: appointments, visits, reminders, birthdays and "
@@ -346,10 +422,24 @@ def tools(events: "Events", people: list[dict], person: str):
     ]
 
 
+def _left(minutes: int) -> str:
+    if minutes > 1:
+        if minutes < 60:
+            return f"in about {minutes} minutes"
+        hours, mins = divmod(minutes, 60)
+        return f"in about {hours} hour{'s' if hours > 1 else ''}" + (f" {mins} minutes" if mins >= 5 else "")
+    if minutes >= -1:
+        return "about now"
+    return f"expected about {-minutes} minutes ago, so a little later than planned"
+
+
 def schedule_text(events: "Events", people: list[dict], person: str, now: datetime | None = None) -> str:
-    """Today's and tomorrow's plans, for the date/time part of the prompt."""
+    """Today's and tomorrow's plans, and anything expected soon, for the prompt."""
     now = now or datetime.now()
     lines = []
+    for e in events.expected(now):
+        lines.append(f"Expected: {e['what']} at {e['at']}, {_left(e['minutes_left'])} "
+                     f"(said at {e['said_at']}).")
     for offset, label in ((0, "Today"), (1, "Tomorrow")):
         items = events.schedule(now.date() + timedelta(days=offset), 1, people, person)
         if not items:

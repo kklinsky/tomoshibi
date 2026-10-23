@@ -286,7 +286,7 @@ class Conversation:
         and a nudge to greet on the first conversation of the day."""
         now = datetime.now()
         parts = [prompt.today_context(now), events_mod.schedule_text(self.events, self.people, self.person, now)]
-        if self._last_talk_day != now.date():
+        if self._last_talk_day != now.date() and now.hour >= 5:  # no "good morning" at 1 AM
             self._last_talk_day = now.date()
             part = "morning" if now.hour < 12 else "afternoon" if now.hour < 17 else "evening"
             parts.append(f"This is your first conversation with {self.person or 'them'} today. Before "
