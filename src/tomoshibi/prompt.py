@@ -121,7 +121,9 @@ def people_text(people_list: list[dict], today: date, subject_name: str | None =
         if (age := _age(p.get("born"), today)) is not None and not p.get("died"):
             details.append(f"{say['age']} {age}, birthday {p['born']:%B} {p['born'].day}")
         if p.get("died"):
-            details.append(f"{say['died']} {p['died']}")
+            died = p["died"]
+            when = f"on {died:%B} {died.day}, {died.year}" if isinstance(died, date) else f"in {died}"
+            details.append(f"{say['died']} {when}")
         if p.get("lives"):
             details.append(f"{say['lives']} {p['lives']}")
         if p.get("notes"):

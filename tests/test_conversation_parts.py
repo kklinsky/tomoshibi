@@ -122,3 +122,12 @@ def test_example_family_wiki_reaches_the_prompt():
     text = prompt.stable_prompt(ROOT / "examples" / "data", conf)
     assert "# Their life story" in text and "radioman" in text
     assert "Talk about Bob's life story" in text  # "memories" is now listed as built
+
+
+def test_death_dates_read_naturally():
+    people = [{"id": "bob", "is_subject": True, "parents": ["n", "r"]},
+              {"id": "s", "name": "Shelly", "pronouns": "she/her", "parents": ["n", "r"], "died": 2021},
+              {"id": "u", "name": "Ruth", "died": date(2023, 4, 10)}]
+    text = prompt.people_text(people, date(2026, 10, 22), "Bob")
+    assert "Shelly: Bob's sister. She died in 2021." in text
+    assert "Died on April 10, 2023." in text
