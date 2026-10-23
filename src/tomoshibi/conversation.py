@@ -8,6 +8,7 @@ are shown as lines in the terminal.
 """
 
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -78,6 +79,15 @@ class Conversation:
         profile = prompt._yaml(paths.data_dir() / "profile.yaml")
         home = cfg.get(conf, "internet.weather.location") or profile.get("location") or ""
         tools = []
+        from tomoshibi.volume import Volume
+
+        volume = Volume(cfg.get(conf, "audio.device", audio.DEFAULT_DEVICE),
+                        int(cfg.get(conf, "audio.volume_floor_percent", 25)))
+        try:
+            volume.restore()
+            tools.append(volume.tool())
+        except (OSError, subprocess.CalledProcessError, AttributeError) as e:  # no mixer: no tool
+            status(f"volume control unavailable: {e}")
         if cfg.get(conf, "internet.weather.enabled", False):
             from tomoshibi.weather import Weather
 

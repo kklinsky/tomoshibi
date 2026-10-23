@@ -15,7 +15,7 @@ from tomoshibi import paths
 TEMPLATE = "about_me.md"
 
 # Features that exist in this version of the software. Add a name here when it ships.
-BUILT: frozenset[str] = frozenset({"conversation", "people", "memories", "web_search", "weather", "news"})
+BUILT: frozenset[str] = frozenset({"conversation", "people", "memories", "volume", "web_search", "weather", "news"})
 
 ALWAYS_CAN = [
     "Have a friendly conversation about almost anything, as often as {person} likes.",
@@ -32,6 +32,8 @@ OPTIONAL = {
                   "Set or give reminders."),
     "memories": ("Talk about {person}'s life story and memories that the family has shared with you.",
                  None),
+    "volume": ("Speak louder or quieter when asked (\"louder, please\", \"turn it down\").",
+               "Change how loud you speak."),
     "web_search": ("Look things up on the internet, such as news, sports results and when events are on.",
                    ("Look things up on the internet. You answer from what you already know, "
                     "which may be out of date.")),

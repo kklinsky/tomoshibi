@@ -4,6 +4,7 @@
 
 audio:
   device: "plughw:CARD=USB"           # ALSA device for the USB speakerphone
+  volume_floor_percent: 25            # "quieter" never goes below this, so Tomo can't go silent
 
 speech:
   stt_model: whisper-base-en          # name from models.lock
