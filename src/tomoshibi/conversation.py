@@ -12,14 +12,17 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 
-from tomoshibi import audio, llm, models, paths, prompt, pronunciation
+from tomoshibi import audio, intents, llm, models, paths, prompt, pronunciation
 from tomoshibi import config as cfg
+from tomoshibi import events as events_mod
 from tomoshibi import stt as stt_mod
 from tomoshibi import tts as tts_mod
+from tomoshibi.events import Events
 from tomoshibi.pronunciation import Pronouncer
 from tomoshibi.sentences import SentenceSplitter
 from tomoshibi.vad import Endpointer, SileroVAD
@@ -65,6 +68,9 @@ class Conversation:
 
         cfg.load_secrets()
         self.provider = llm.from_config(conf)
+        self.events = Events(paths.data_dir())
+        self.reminder_listen = cfg.seconds(cfg.get(conf, "reminders.listen_window"), 30)
+        self._last_talk_day = None
         self._data_stamp = None
         self._reload_data()
         self.tools, self.web_search = self._lookups(conf)
@@ -131,10 +137,12 @@ class Conversation:
         self.start_button()
         status("idle: face relaxed, light off")
         while True:
-            self.pressed.wait()
-            self.pressed.clear()
-            self.session()
-            status("idle: face relaxed, light off")
+            if self.pressed.wait(timeout=10):
+                self.pressed.clear()
+                self.session()
+                status("idle: face relaxed, light off")
+            if self.give_due_reminders():
+                status("idle: face relaxed, light off")
 
     def _run_typed(self) -> None:
         status("type a question and press Enter (Ctrl-D to quit)")
@@ -143,20 +151,68 @@ class Conversation:
             if text:
                 self.respond(text)
 
-    def session(self) -> None:
-        self.speaker.play(audio.chime(), 24_000)
-        self.speaker.finish()
-        self.speaker.wait()
+    def session(self, first_text: str = "", note: str = "") -> None:
+        if not first_text:
+            self.speaker.play(audio.chime(), 24_000)
+            self.speaker.finish()
+            self.speaker.wait()
         wait = self.first_wait
         while True:
-            text = self.listen(wait)
+            text, first_text = (first_text or self.listen(wait)), ""
             if not text:
                 status("no reply: settling back to idle")
                 return
-            interrupted = self.respond(text)
+            interrupted = self.respond(text, note)
+            note = ""
             if GOODBYE.search(text) and not interrupted:
                 return
             wait = self.follow_up
+
+    # --- reminders (docs/DESIGN.md §4, use case 2) ------------------------------------------
+    def give_due_reminders(self) -> bool:
+        """Give any reminders that are due, then listen for a reply. Returns True if any were
+        given. Reminders use fixed words, local speech and the local reply matcher, so they
+        work with no internet; only a reply that's a new question goes to the AI."""
+        self._reload_data()
+        now = datetime.now()
+        due = self.events.due(now)
+        if not due:
+            return False
+        words = [events_mod.reminder_words(r, self.person, now) for r in due]
+        status("reminder: face wakes and looks up")
+        print("  reminder: " + " ".join(words), flush=True)
+        self.speaker.play(audio.chime(), 24_000)
+        for sentence in words:
+            self._speak(sentence, [])
+        self.speaker.finish()
+        self.speaker.wait()
+        reply = self.listen(self.reminder_listen)
+        if not reply:
+            for r in due:
+                if self.events.record(r, "attempted", now) == "missed":
+                    status(f"missed: {r.occurrence.event.title} (would alert the family; Slack isn't built yet)")
+                else:
+                    status(f"no reply: will remind again in {events_mod.RETRY_MINUTES} minutes")
+            return True
+        kind, minutes = intents.reminder_reply(reply)
+        if kind == "snooze":
+            for r in due:
+                self.events.record(r, "snoozed", now, minutes)
+            self._say_now(f"All right, I'll remind you again in {minutes} minutes.")
+            return True
+        for r in due:
+            self.events.record(r, "acknowledged", now)
+        if kind == "ack":
+            self._say_now("Okay.")
+            return True
+        # Something else: carry on as a conversation, with the reminder in mind.
+        self.session(first_text=reply, note="You just gave this reminder: " + " ".join(words))
+        return True
+
+    def _say_now(self, sentence: str) -> None:
+        self._speak(sentence, [])
+        self.speaker.finish()
+        self.speaker.wait()
 
     # --- listening --------------------------------------------------------------------
     def listen(self, wait: float) -> str:
@@ -193,7 +249,7 @@ class Conversation:
     def _data_files(self) -> list[Path]:
         data = paths.data_dir()
         files = [data / n for n in ("persona.yaml", "profile.yaml", "people.yaml", "pronunciations.yaml")]
-        return files + sorted((data / "wiki").glob("*.md"))
+        return files + [data / "events.yaml"] + sorted((data / "wiki").glob("*.md"))
 
     def _reload_data(self) -> None:
         """(Re)read the family's files when any of them changed, so edits made while Tomo is
@@ -206,8 +262,27 @@ class Conversation:
         self._data_stamp = stamp
         self.stable = prompt.stable_prompt(paths.data_dir(), self.conf)
         self.pronouncer = Pronouncer(pronunciation.load(paths.data_dir()))
+        profile = prompt._yaml(paths.data_dir() / "profile.yaml")
+        self.person = str(profile.get("call_him") or profile.get("name") or "")
+        self.people = (prompt._yaml(paths.data_dir() / "people.yaml").get("people")) or []
+        self.event_tools = events_mod.tools(self.events, self.people, self.person)
 
-    def respond(self, text: str) -> bool:
+    def _volatile(self, note: str = "") -> str:
+        """The part of the prompt that changes: date and time, today's and tomorrow's plans,
+        and a nudge to greet on the first conversation of the day."""
+        now = datetime.now()
+        parts = [prompt.today_context(now), events_mod.schedule_text(self.events, self.people, self.person, now)]
+        if self._last_talk_day != now.date():
+            self._last_talk_day = now.date()
+            part = "morning" if now.hour < 12 else "afternoon" if now.hour < 17 else "evening"
+            parts.append(f"This is your first conversation with {self.person or 'them'} today. Before "
+                         f"answering, give a short good-{part} greeting with the day and date, and "
+                         "mention today's plans if there are any.")
+        if note:
+            parts.append(note)
+        return "\n\n".join(parts)
+
+    def respond(self, text: str, note: str = "") -> bool:
         """Stream and speak the reply. Returns True if the button interrupted it."""
         self._reload_data()
         self.history.append({"role": "user", "content": text})
@@ -218,8 +293,9 @@ class Conversation:
         splitter = SentenceSplitter()
         interrupted = False
         try:
-            for delta in self.provider.stream_reply(self.stable, prompt.today_context(), self.history,
-                                                    tools=self.tools, web_search=self.web_search):
+            for delta in self.provider.stream_reply(self.stable, self._volatile(note), self.history,
+                                                    tools=self.tools + self.event_tools,
+                                                    web_search=self.web_search):
                 if first_token is None:
                     first_token = time.perf_counter() - t0
                 for sentence in splitter.feed(delta):

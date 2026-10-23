@@ -38,6 +38,9 @@ def main(argv: list[str] | None = None) -> int:
     chat.add_argument("--tts", help="TTS model name from models.lock")
     chat.add_argument("--config", type=Path, help="path to config.yaml")
 
+    events_cmd = sub.add_parser("events", help="show the calendar and any reminders due now")
+    events_cmd.add_argument("--days", type=int, default=7)
+
     setup = sub.add_parser("setup-page", help="run the setup page (for now: the pronunciation tester)")
     setup.add_argument("--host", default="0.0.0.0", help="address to listen on (default: all)")
     setup.add_argument("--port", type=int, default=8080)
@@ -117,6 +120,23 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         except KeyboardInterrupt:
             pass
+        return 0
+
+    if args.command == "events":
+        from datetime import date, datetime
+
+        from tomoshibi import prompt
+        from tomoshibi.events import Events
+
+        data = paths.data_dir()
+        people = (prompt._yaml(data / "people.yaml").get("people")) or []
+        person = str(prompt._yaml(data / "profile.yaml").get("call_him") or "")
+        ev = Events(data)
+        for item in ev.schedule(date.today(), args.days, people, person):
+            print(f"  {item['date']:22} {item.get('time', ''):9} {item['title']}")
+        due = ev.due(datetime.now())
+        print()
+        print(f"  Due now: {', '.join(r.occurrence.event.title for r in due) or 'nothing'}")
         return 0
 
     if args.command == "setup-page":

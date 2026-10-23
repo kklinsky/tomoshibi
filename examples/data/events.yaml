@@ -1,0 +1,31 @@
+# The family calendar: appointments, visits and reminders (docs/DESIGN.md §7).
+# Tomo reminds at the time (and earlier, with remind_before), then listens for "OK"
+# or "remind me in ten minutes". Birthdays and anniversaries come from people.yaml.
+#
+#   time:          "08:00" or "2:30 pm" (in quotes); leave out for an all-day event
+#   date / starts: 2026-10-27; leave out for "from today"
+#   repeat:        daily | weekdays | weekly | monthly | yearly | [mon, thu]
+#   until:         last date, for repeating events
+#   remind_before: minutes before, e.g. [60, 0] for an hour before and at the time
+#   say:           exact words at the time (otherwise "Bob, it's time for <title>.")
+#   protected:     true = can't be changed or cancelled by voice
+
+events:
+  - id: morning-pills
+    title: Morning pills
+    time: "08:00"
+    repeat: daily
+    say: "Bob, it's time for your morning pills. They're in the blue box by the sink."
+    protected: true
+
+  - id: card-night
+    title: Card night at the Smiths'
+    time: "7 pm"
+    repeat: [fri]
+    remind_before: [60, 0]
+
+  - id: dentist
+    title: Dentist
+    date: 2026-11-05
+    time: "2:30 pm"
+    remind_before: [60, 0]
