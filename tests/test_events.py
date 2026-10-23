@@ -152,3 +152,18 @@ def test_expected_time_tool(tmp_path):
     assert out["noted"] == "Carol back from the bank"
     assert ev.expected()[0]["minutes_left"] in (44, 45)
     assert json.loads(by_name["clear_expected_time"].run({"what": "Carol"})) == {"cleared": 1}
+
+
+def test_schedule_is_in_date_order_and_searchable(tmp_path):
+    from tomoshibi.events import tools
+
+    ev = Events(tmp_path)
+    ev.add("Kevin visits Dad for Thanksgiving", date(2026, 11, 26), None)
+    people = [{"id": "kevin", "name": "Kevin Klinsky", "called": ["Kevin"], "born": date(1971, 11, 1)}]
+    items = ev.schedule(date(2026, 10, 23), 40, people, "Arnold")
+    assert [i["date"] for i in items] == ["Sunday, November 1", "Thursday, November 26"]
+    get = {t.name: t for t in tools(ev, people, "Arnold")}["get_schedule"]
+    import json
+    found = json.loads(get.run({"search": "Kevin"}))
+    assert found["days"] == 365
+    assert [i["title"] for i in found["items"]][-1] == "Kevin visits Dad for Thanksgiving"

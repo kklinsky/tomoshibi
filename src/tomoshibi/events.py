@@ -222,13 +222,20 @@ class Events:
         return sorted(out)
 
     def schedule(self, start: date, days: int, people: list[dict] | None = None,
-                 person: str = "") -> list[dict]:
-        """Events plus birthdays and anniversaries, for the AI to read."""
-        items = [o.describe() for o in self.occurrences(start, days)]
+                 person: str = "", search: str = "") -> list[dict]:
+        """Events plus birthdays and anniversaries, in date order, for the AI to read.
+        With `search`, only items whose title contains one of its words."""
+        dated = [(o.when, o.describe()) for o in self.occurrences(start, days)]
         for day_offset in range(days):
             day = start + timedelta(days=day_offset)
             for note in special_days(people or [], day, person):
-                items.append({"title": note, "date": day.strftime("%A, %B ") + str(day.day)})
+                dated.append((datetime.combine(day, time(0)),
+                              {"title": note, "date": day.strftime("%A, %B ") + str(day.day)}))
+        dated.sort(key=lambda pair: pair[0])
+        items = [item for _, item in dated]
+        words = [w for w in search.lower().replace("'s", "").split() if len(w) > 2]
+        if words:
+            items = [i for i in items if any(w in i["title"].lower() for w in words)]
         return items
 
     # --- reminders -----------------------------------------------------------------------
@@ -333,9 +340,11 @@ def tools(events: "Events", people: list[dict], person: str):
 
     def get_schedule(args: dict) -> str:
         start = date.fromisoformat(args["from_date"]) if args.get("from_date") else date.today()
-        days = max(1, min(int(args.get("days") or 1), 31))
-        return json.dumps({"from": start.isoformat(), "days": days,
-                           "items": events.schedule(start, days, people, person)})
+        search = str(args.get("search") or "").strip()
+        days = int(args.get("days") or (365 if search else 1))
+        days = max(1, min(days, 366 if search else 62))
+        items = events.schedule(start, days, people, person, search=search)
+        return json.dumps({"from": start.isoformat(), "days": days, "search": search, "items": items})
 
     def add_event(args: dict) -> str:
         try:
@@ -396,11 +405,14 @@ def tools(events: "Events", people: list[dict], person: str):
         Tool(
             name="get_schedule",
             description=("The family calendar: appointments, visits, reminders, birthdays and "
-                         "anniversaries for a range of days. Today and tomorrow are already in "
-                         "your context; use this for other days or longer ranges."),
+                         "anniversaries. Today and tomorrow are already in your context. For "
+                         "'when is ...?' questions ('When is Kevin coming?', 'When's the dentist?') "
+                         "pass `search` with the key word; it looks a whole year ahead. Otherwise "
+                         "give a range of days."),
             input_schema={"type": "object", "properties": {
+                "search": {"type": "string", "description": "a name or word to find, e.g. 'Kevin'"},
                 "from_date": {"type": "string", "description": "YYYY-MM-DD; default today"},
-                "days": {"type": "string", "description": "how many days, 1-31; default 1"},
+                "days": {"type": "string", "description": "how many days; default 1, or a year with search"},
             }, "required": [], "additionalProperties": False},
             run=get_schedule,
         ),

@@ -42,8 +42,9 @@ RULES = """\
   scam and suggest checking with family first.
 - Never pretend to have done something you haven't, such as sending a message.
 - You can't tell voices apart. When it matters who is speaking (someone says they're going
-  out, or asks you to change something) and they haven't said, ask: "Is this {person} or
-  {caregiver}?" Never assume it's {person}.
+  out, coming to visit, or asks you to change something) and they haven't said, ask who
+  you're talking with. Never assume it's {person}; it may be {caregiver} or another
+  family member.
 - Before you look something up or check the weather, say a few words first, like
   "Let me check." Then give the answer once, simply, without sources or web addresses.
 - Everything you write after a search is read aloud, including the passages you quote
