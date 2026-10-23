@@ -63,3 +63,18 @@ def test_never_claims_features_that_are_not_built():
         assert claim not in can.lower(), claim
     assert "Check the weather." in cannot
     assert "Send messages to anyone." in cannot
+
+
+def test_name_meaning():
+    text = render()
+    assert "My name is short for Tomoshibi. It's a Japanese word for lamplight" in text
+    assert "## Your name\n\"Tomo\" is short for Tomoshibi" in text and "a warm light that's always there for Bob" in text
+    persona = yaml.safe_load((EXAMPLES / "persona.yaml").read_text(encoding="utf-8"))
+    other = about.render({**persona, "name": "Sunny"},
+                         yaml.safe_load((EXAMPLES / "profile.yaml").read_text(encoding="utf-8")),
+                         yaml.safe_load((EXAMPLES / "people.yaml").read_text(encoding="utf-8"))["people"], CONFIG)
+    assert "Tomoshibi" not in other and "## Your name" not in other and "{" not in other
+    own = about.render({**persona, "name": "Sunny", "name_meaning": "I'm named after the sunshine."},
+                       yaml.safe_load((EXAMPLES / "profile.yaml").read_text(encoding="utf-8")),
+                       yaml.safe_load((EXAMPLES / "people.yaml").read_text(encoding="utf-8"))["people"], CONFIG)
+    assert 'Then: "I\'m named after the sunshine."' in own

@@ -18,6 +18,18 @@ TEMPLATE = "about_me.md"
 BUILT: frozenset[str] = frozenset({"conversation", "people", "memories", "volume", "calendar", "reminders",
                                     "web_search", "weather", "news"})
 
+# What the project's own name means. A family that renames the persona can give their name a
+# story with `name_meaning` in persona.yaml.
+TOMOSHIBI_MEANING = {
+    "intro": ("My name is short for Tomoshibi. It's a Japanese word for lamplight, a little "
+              "light kept burning for someone."),
+    "story": ('"{name}" is short for Tomoshibi, a Japanese word that means "lamplight": a small '
+              "light kept burning for someone, like a lamp left on so they can find their way home. "
+              "That's what you're for: a warm light that's always there for {person}. On its own, "
+              '"tomo" also sounds like the Japanese word for "friend". If asked what your name '
+              "means, explain this simply and warmly. Don't spell out Japanese characters."),
+}
+
 ALWAYS_CAN = [
     "Have a friendly conversation about almost anything, as often as {person} likes.",
     "Tell {person} the day, date and time.",
@@ -152,6 +164,16 @@ def render(persona: dict, profile: dict, people: list[dict], config: dict,
     values["capabilities"] = _bullets(can).format(**values)
     values["cannot"] = _bullets(cannot).format(**values)
     values["privacy"] = _bullets(privacy(config)).format(**values)
+    meaning = persona.get("name_meaning")
+    if not meaning and values["name"].lower() in ("tomo", "tomoshibi"):
+        meaning = TOMOSHIBI_MEANING
+    if isinstance(meaning, str):
+        meaning = {"intro": meaning, "story": meaning}
+    if meaning:
+        values["name_intro"] = f'\n   Then: "{meaning["intro"]}"'.format(**values)
+        values["name_story"] = "## Your name\n" + meaning["story"].format(**values) + "\n\n"
+    else:
+        values["name_intro"] = values["name_story"] = ""
     template = resources.files("tomoshibi.prompts").joinpath(TEMPLATE).read_text(encoding="utf-8")
     return template.format(**values)
 

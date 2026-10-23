@@ -23,6 +23,11 @@ def test_no_pronunciations_is_a_no_op(tmp_path: Path):
     assert Pronouncer(load(tmp_path)).apply("Hello there.") == "Hello there."
 
 
+def test_builtin_words():
+    assert Pronouncer({}).apply("Short for Tomoshibi.") == "Short for Toemoe-sheebee."
+    assert Pronouncer({"Tomoshibi": "Tomo-shee-bee"}).apply("Tomoshibi") == "Tomo-shee-bee"  # family wins
+
+
 PEOPLE = """\
 # Family tree. Comments must survive edits.
 people:

@@ -71,8 +71,15 @@ def fix_homographs(text: str) -> str:
     return CALL_LETTERS.sub(_spell, text)
 
 
+# Words every Tomo should say right. A family's own pronunciations take precedence.
+BUILTIN_WORDS = {
+    "Tomoshibi": "Toemoe-sheebee",  # toh-moh-shee-bee, not "TAH-muh-shih-buy"
+}
+
+
 class Pronouncer:
     def __init__(self, words: dict[str, str]):
+        words = {**BUILTIN_WORDS, **words}
         self.words = {w.lower(): s for w, s in words.items()}
         self._pattern = (re.compile(r"\b(" + "|".join(re.escape(w) for w in sorted(words, key=len, reverse=True))
                                     + r")\b", re.IGNORECASE) if words else None)
