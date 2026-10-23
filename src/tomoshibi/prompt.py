@@ -201,6 +201,38 @@ def profile_text(profile: dict, subject: dict | None = None, today: date | None 
     return "\n".join(lines)
 
 
+SENSITIVITY = {
+    "normal": "You may bring this up yourself when it fits.",
+    "avoid_unless_raised": "Don't bring this up yourself. Talk about it only if {person} does.",
+    "never": "Don't discuss this. If {person} raises it, respond kindly and gently move to "
+             "something else.",
+}
+
+
+def wiki_text(data_dir: Path, person: str) -> str:
+    """Approved life-story pages from data/wiki (docs/DESIGN.md §6.2), all included while
+    the wiki is small. Source tags and source lists are for people, so they're left out."""
+    pages = sorted((data_dir / "wiki").glob("*.md")) if (data_dir / "wiki").is_dir() else []
+    out = []
+    for page in pages:
+        raw = page.read_text(encoding="utf-8")
+        meta, body = {}, raw
+        if raw.startswith("---"):
+            _, front, body = raw.split("---", 2)
+            meta = yaml.safe_load(front) or {}
+        body = re.split(r"(?m)^## Sources\s*$", body)[0]
+        body = re.sub(r"\s*\[[\w-]+\]", "", body)        # "[hof-bio]" source tags
+        body = re.sub(r"(?m)^#+ ", "", body).strip()       # headings become plain labels
+        topic = meta.get("topic") or page.stem.replace("-", " ").title()
+        rule = SENSITIVITY.get(str(meta.get("sensitivity", "normal")), SENSITIVITY["normal"])
+        out.append(f"## {topic}\n{rule.format(person=person)}\n{body}")
+    if not out:
+        return ""
+    return ("# Their life story (from the family)\n"
+            "These are checked facts. Use only them for questions about the past; if something "
+            "isn't here, say you don't know.\n\n" + "\n\n".join(out))
+
+
 def stable_prompt(data_dir: Path | None = None, config: dict | None = None) -> str:
     data_dir = data_dir or paths.data_dir()
     persona = _yaml(data_dir / "persona.yaml")
@@ -215,7 +247,8 @@ def stable_prompt(data_dir: Path | None = None, config: dict | None = None) -> s
         about.render(persona, profile, people_list, config),
         profile_text(profile, next((p for p in people_list if p.get("is_subject")), None)),
         people_text(people_list, date.today(), person),
-    ])
+        wiki_text(data_dir, person),
+    ]).strip()
 
 
 def today_context(now: datetime | None = None) -> str:

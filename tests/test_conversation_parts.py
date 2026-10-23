@@ -98,3 +98,27 @@ def test_relationship_words_follow_pronouns():
     assert prompt._gendered("Bob's child-in-law (married to Karen)", "he/him") == "Bob's son-in-law (married to Karen)"
     assert prompt._gendered("Bob's grandchild", "they/them") == "Bob's grandchild"
     assert prompt._gendered("Bob's grandchild", None) == "Bob's grandchild"
+
+
+def test_wiki_is_included_without_source_tags(tmp_path):
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "career.md").write_text(
+        "---\ntopic: Career\nsensitivity: normal\n---\n## Facts\n- Ran WHEC from 1983. [hof]\n\n"
+        "## How to talk about it\nDon't bring up retirement.\n\n## Sources\n- hof: Hall of Fame\n",
+        encoding="utf-8")
+    (wiki / "loss.md").write_text("---\ntopic: A hard year\nsensitivity: avoid_unless_raised\n---\n- Lost his job.\n",
+                                  encoding="utf-8")
+    text = prompt.wiki_text(tmp_path, "Bob")
+    assert "## Career\nYou may bring this up" in text
+    assert "- Ran WHEC from 1983." in text and "[hof]" not in text and "Hall of Fame" not in text
+    assert "Don't bring up retirement." in text
+    assert "Don't bring this up yourself. Talk about it only if Bob does." in text
+    assert prompt.wiki_text(tmp_path / "nothing", "Bob") == ""
+
+
+def test_example_family_wiki_reaches_the_prompt():
+    conf = yaml.safe_load((ROOT / "config" / "config.example.yaml").read_text(encoding="utf-8"))
+    text = prompt.stable_prompt(ROOT / "examples" / "data", conf)
+    assert "# Their life story" in text and "radioman" in text
+    assert "Talk about Bob's life story" in text  # "memories" is now listed as built

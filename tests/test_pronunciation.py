@@ -82,3 +82,12 @@ def test_homographs_lives_and_live():
     assert f("Cats have nine lives.") == "Cats have nine lives."   # the noun is left alone
     assert f("We watched the game live.") == "We watched the game live."
     assert f("She delivers.") == "She delivers."
+
+
+def test_call_letters_are_spelled_out():
+    from tomoshibi.pronunciation import fix_homographs as f
+
+    assert f("You ran WHEC in Rochester.") == "You ran W H E C in Rochester."
+    assert f("WVIT and KMOX-AM.") == "W V I T and K M O X A M."
+    assert f("NBC and ABC.") == "NBC and ABC."          # the voice already spells these
+    assert f("We won the Emmy.") == "We won the Emmy."  # ordinary words are left alone

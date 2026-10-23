@@ -55,10 +55,20 @@ HOMOGRAPHS = [
 ]
 
 
+# US radio and TV call letters (WHEC, WVIT, KMOX) are spelled out, not read as words
+# ("WHEC" came out as "wek"). Optional -TV/-FM/-AM suffixes are spelled too.
+CALL_LETTERS = re.compile(r"\b([KW][A-Z]{2,3})(?:-(TV|FM|AM))?\b")
+
+
+def _spell(match: re.Match) -> str:
+    letters = " ".join(match.group(1))
+    return f"{letters} {' '.join(match.group(2))}" if match.group(2) else letters
+
+
 def fix_homographs(text: str) -> str:
     for pattern, replacement in HOMOGRAPHS:
         text = pattern.sub(replacement, text)
-    return text
+    return CALL_LETTERS.sub(_spell, text)
 
 
 class Pronouncer:
