@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tomo Setup</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Night and lamplight, like the device (docs/brand.md). One column; big tap targets. */
+:root {
+  color-scheme: dark;
+  --bg: #1e1b2e; --panel: #282339; --line: #3d3552; --ink: #f1e7d6; --muted: #b3a8c2;
+  --lamp: #f2b45a; --lamp-ink: #2a1c08; --ok: #86c99d; --bad: #e98a80;
+  --mark: "Fredoka", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --body: "Zen Kaku Gothic New", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 var(--body);
+  padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left)); }
+main { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+header { display: flex; align-items: baseline; gap: 12px; }
+.mark { font-family: var(--mark); font-weight: 600; color: var(--lamp); font-size: 2.2rem; line-height: 1; }
+header span { color: var(--muted); font-size: 1.05rem; }
+h2 { margin: 0; font-size: 1.2rem; }
+p { margin: 0; }
+.hint { color: var(--muted); font-size: .92rem; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; }
+input[type=text] { font: inherit; color: var(--ink); background: #17141f; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; width: 100%; }
+input[type=text]:focus-visible, button:focus-visible { outline: 3px solid var(--lamp); outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; }
+button { font: 600 1rem var(--body); color: var(--ink); background: #342d46; border: 1px solid #4a4061; border-radius: 10px; padding: 12px 16px; min-height: 48px; cursor: pointer; }
+button.primary { background: var(--lamp); color: var(--lamp-ink); border-color: var(--lamp); }
+button[aria-pressed=true] { background: var(--lamp); color: var(--lamp-ink); border-color: var(--lamp); }
+button:disabled { opacity: .5; cursor: default; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; }
+.seg button[aria-pressed=true] { background: var(--lamp); color: var(--lamp-ink); }
+.status { min-height: 1.5em; font-size: .95rem; }
+.status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
+ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+li.entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+li.entry .words { min-width: 0; overflow-wrap: anywhere; }
+li.entry .words b { font-size: 1.1rem; }
+li.entry .where { color: var(--muted); font-size: .85rem; }
+li.entry .row { justify-content: flex-end; }
+li.entry button { min-height: 44px; padding: 8px 12px; }
+.tries li { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header><span class="mark">tomo</span><span>Setup</span></header>
+
+  <section class="panel" aria-labelledby="try-h">
+    <h2 id="try-h">Try a pronunciation</h2>
+    <p class="hint">Hear a name in Tomo's own voice, try different spellings until it sounds right, then save it. The spelling Tomo shows stays the same; only how it's said changes.</p>
+    <label>Word, spelled as usual
+      <input type="text" id="word" autocomplete="off" placeholder="Meryl">
+    </label>
+    <label>Say it like <span class="hint">(spell it the way it sounds; leave empty to hear it as it is now)</span>
+      <input type="text" id="say" autocomplete="off" placeholder="Meril">
+    </label>
+    <label>In this sentence
+      <input type="text" id="sentence" autocomplete="off">
+    </label>
+    <div class="row" style="align-items:center">
+      <span class="hint">Listen on:</span>
+      <div class="seg" role="group" aria-label="Where to listen">
+        <button type="button" id="where-browser" aria-pressed="true">This phone or computer</button>
+        <button type="button" id="where-device" aria-pressed="false">Tomo's speaker</button>
+      </div>
+    </div>
+    <div class="row">
+      <button type="button" id="play-now">Play as it is now</button>
+      <button type="button" id="play-new">Play my spelling</button>
+      <button type="button" id="save" class="primary">Save</button>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <div id="tries-box" hidden>
+      <p class="hint">Recent tries</p>
+      <ul class="tries" id="tries"></ul>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="list-h">
+    <h2 id="list-h">Saved pronunciations</h2>
+    <ul id="list"><li class="empty">Loading…</li></ul>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const word = $("word"), say = $("say"), sentence = $("sentence"), statusEl = $("status");
+  let where = "browser", person = "", sentenceEdited = false, tries = [];
+
+  function setStatus(text, kind = "") { statusEl.textContent = text; statusEl.className = "status " + kind; }
+  function defaultSentence(w) { return `${w || "Meryl"} called today${person ? ", " + person : ""}.`; }
+  function syncSentence() { if (!sentenceEdited) sentence.value = defaultSentence(word.value.trim()); }
+
+  word.addEventListener("input", syncSentence);
+  sentence.addEventListener("input", () => { sentenceEdited = sentence.value.trim() !== ""; });
+
+  for (const [id, value] of [["where-browser", "browser"], ["where-device", "device"]]) {
+    $(id).addEventListener("click", () => {
+      where = value;
+      $("where-browser").setAttribute("aria-pressed", String(value === "browser"));
+      $("where-device").setAttribute("aria-pressed", String(value === "device"));
+    });
+  }
+
+  async function api(path, body) {
+    const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    return res;
+  }
+
+  async function play(useSpelling, w = word.value.trim(), s = say.value.trim(), text = sentence.value.trim()) {
+    if (!text) { setStatus("Type a word or a sentence first.", "bad"); return; }
+    setStatus(where === "device" ? "Playing on Tomo's speaker…" : "Making the audio…");
+    const res = await api("/api/say", { text, word: useSpelling ? w : "", say: useSpelling ? s : "", where });
+    if (!res.ok) { setStatus((await res.json()).error || "Something went wrong.", "bad"); return; }
+    if (where === "device") { setStatus("Played on Tomo's speaker.", "ok"); }
+    else {
+      const url = URL.createObjectURL(await res.blob());
+      const audio = new Audio(url);
+      audio.addEventListener("ended", () => URL.revokeObjectURL(url));
+      await audio.play().catch(() => setStatus("Your browser blocked playback. Tap Play again.", "bad"));
+      setStatus("");
+    }
+    if (useSpelling && w && s && !tries.some(t => t.word === w && t.say === s)) {
+      tries.unshift({ word: w, say: s }); tries = tries.slice(0, 5); renderTries();
+    }
+  }
+
+  $("play-now").addEventListener("click", () => play(false));
+  $("play-new").addEventListener("click", () => {
+    if (!word.value.trim() || !say.value.trim()) { setStatus("Fill in the word and how to say it.", "bad"); return; }
+    play(true);
+  });
+  $("save").addEventListener("click", async () => {
+    const w = word.value.trim(), s = say.value.trim();
+    if (!w || !s) { setStatus("Fill in the word and how to say it, then save.", "bad"); return; }
+    const res = await api("/api/pronunciations", { word: w, say: s });
+    const data = await res.json();
+    if (!res.ok) { setStatus(data.error, "bad"); return; }
+    setStatus(`Saved. Tomo will now say "${w}" like "${s}".`, "ok");
+    load();
+  });
+
+  function renderTries() {
+    $("tries-box").hidden = !tries.length;
+    $("tries").replaceChildren(...tries.map(t => {
+      const li = document.createElement("li");
+      const label = document.createElement("span");
+      label.textContent = `${t.word} → ${t.say}`;
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.textContent = "Play";
+      btn.addEventListener("click", () => play(true, t.word, t.say, defaultSentence(t.word)));
+      const use = document.createElement("button");
+      use.type = "button"; use.textContent = "Use";
+      use.addEventListener("click", () => { word.value = t.word; say.value = t.say; syncSentence(); });
+      const row = document.createElement("span"); row.className = "row"; row.append(btn, use);
+      li.append(label, row);
+      return li;
+    }));
+  }
+
+  async function load() {
+    const res = await fetch("/api/pronunciations");
+    if (!res.ok) { $("list").innerHTML = '<li class="empty">Couldn\'t load the list.</li>'; return; }
+    const data = await res.json();
+    person = data.person || "";
+    syncSentence();
+    if (!data.entries.length) { $("list").innerHTML = '<li class="empty">None yet.</li>'; return; }
+    $("list").replaceChildren(...data.entries.map(e => {
+      const li = document.createElement("li"); li.className = "entry";
+      const words = document.createElement("div"); words.className = "words";
+      const b = document.createElement("b"); b.textContent = e.word;
+      const arrow = document.createTextNode(` said like “${e.say}”`);
+      const whereEl = document.createElement("div"); whereEl.className = "where";
+      whereEl.textContent = e.where === "people.yaml" ? `${e.person}'s name, in people.yaml` : "in pronunciations.yaml";
+      words.append(b, arrow, whereEl);
+      const row = document.createElement("div"); row.className = "row";
+      const playBtn = document.createElement("button"); playBtn.type = "button"; playBtn.textContent = "Play";
+      playBtn.addEventListener("click", () => play(false, e.word, "", defaultSentence(e.word)));
+      const edit = document.createElement("button"); edit.type = "button"; edit.textContent = "Edit";
+      edit.addEventListener("click", () => {
+        word.value = e.word; say.value = e.say; sentenceEdited = false; syncSentence();
+        word.scrollIntoView({ behavior: "smooth", block: "center" }); say.focus();
+      });
+      const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Remove";
+      remove.addEventListener("click", async () => {
+        if (remove.dataset.confirm !== "1") { remove.dataset.confirm = "1"; remove.textContent = "Tap again to remove"; return; }
+        const res = await api("/api/pronunciations/delete", { word: e.word });
+        setStatus(res.ok ? `Removed "${e.word}".` : (await res.json()).error, res.ok ? "ok" : "bad");
+        load();
+      });
+      row.append(playBtn, edit, remove);
+      li.append(words, row);
+      return li;
+    }));
+  }
+
+  syncSentence();
+  load();
+})();
+</script>
+</body>
+</html>

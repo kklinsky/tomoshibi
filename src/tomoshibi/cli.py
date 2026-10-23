@@ -38,6 +38,11 @@ def main(argv: list[str] | None = None) -> int:
     chat.add_argument("--tts", help="TTS model name from models.lock")
     chat.add_argument("--config", type=Path, help="path to config.yaml")
 
+    setup = sub.add_parser("setup-page", help="run the setup page (for now: the pronunciation tester)")
+    setup.add_argument("--host", default="0.0.0.0", help="address to listen on (default: all)")
+    setup.add_argument("--port", type=int, default=8080)
+    setup.add_argument("--config", type=Path, help="path to config.yaml")
+
     bench = sub.add_parser("bench", help="benchmarks")
     bench_sub = bench.add_subparsers(dest="bench_command", required=True)
     bench_speech = bench_sub.add_parser("speech", help="TTS -> STT round trip with timings")
@@ -110,6 +115,16 @@ def main(argv: list[str] | None = None) -> int:
         except ProviderError as e:
             print(f"Can't start: {e}")
             return 2
+        except KeyboardInterrupt:
+            pass
+        return 0
+
+    if args.command == "setup-page":
+        from tomoshibi import config as cfg
+        from tomoshibi.setup_page import serve
+
+        try:
+            serve(cfg.load(args.config), lock_path, args.host, args.port)
         except KeyboardInterrupt:
             pass
         return 0

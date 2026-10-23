@@ -7,6 +7,8 @@ to the voice change. Sources:
   {"Tommi": "Tommy", "Naples": "Nay-pulls"}
 """
 
+import json
+import os
 import re
 from pathlib import Path
 
@@ -48,3 +50,112 @@ class Pronouncer:
         if not self._pattern:
             return text
         return self._pattern.sub(lambda m: self.words[m.group(0).lower()], text)
+
+
+# --- Editing, for the setup page's pronunciation tester ------------------------------------
+# Edits change single lines so the family's hand-written files keep their comments and
+# layout; each result is checked as valid YAML before it replaces the file.
+
+
+def entries(data_dir: Path) -> list[dict]:
+    """Current pronunciations: {"word", "say", "where": "people.yaml"|"pronunciations.yaml"}."""
+    out = []
+    for person in (_yaml(data_dir / "people.yaml").get("people") or []):
+        if person.get("pronounce") and person.get("name"):
+            out.append({"word": str(person["name"]).split()[0], "say": str(person["pronounce"]),
+                        "where": "people.yaml", "person": person.get("name")})
+    for word, say in (_yaml(data_dir / "pronunciations.yaml") or {}).items():
+        out.append({"word": str(word), "say": str(say), "where": "pronunciations.yaml"})
+    return sorted(out, key=lambda e: e["word"].lower())
+
+
+def _write_checked(path: Path, text: str) -> None:
+    yaml.safe_load(text)  # raises if the edit broke the file; nothing is written then
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    if path.exists():
+        path.with_suffix(path.suffix + ".bak").write_bytes(path.read_bytes())
+    os.replace(tmp, path)
+
+
+def _person_block(lines: list[str], word: str) -> tuple[int, int] | None:
+    """Line range of the people.yaml entry whose first name is `word`."""
+    starts = [i for i, line in enumerate(lines) if line.lstrip().startswith("- id:")]
+    for n, start in enumerate(starts):
+        end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+        for line in lines[start:end]:
+            stripped = line.strip()
+            if stripped.startswith("name:"):
+                name = yaml.safe_load(stripped[len("name:"):]) or ""
+                if str(name).split() and str(name).split()[0].lower() == word.lower():
+                    return start, end
+    return None
+
+
+def save(data_dir: Path, word: str, say: str) -> str:
+    """Set how `word` sounds. Returns the file it was saved in."""
+    word, say = word.strip(), say.strip()
+    if not word or not say or "\n" in word + say:
+        raise ValueError("word and pronunciation must be filled in, on one line")
+    people_path = data_dir / "people.yaml"
+    if people_path.is_file():
+        lines = people_path.read_text(encoding="utf-8").splitlines()
+        block = _person_block(lines, word)
+        if block:
+            start, end = block
+            line = f"    pronounce: {json.dumps(say)}"
+            for i in range(start, end):
+                if lines[i].strip().startswith("pronounce:"):
+                    lines[i] = line
+                    break
+            else:
+                # Insert after `called:` if there is one, otherwise after `name:`.
+                keys = {lines[i].strip().split(":", 1)[0]: i for i in range(start, end)}
+                lines.insert(keys.get("called", keys["name"]) + 1, line)
+            _write_checked(people_path, "\n".join(lines) + "\n")
+            return "people.yaml"
+    path = data_dir / "pronunciations.yaml"
+    lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else [
+        "# How words should sound when Tomo speaks them. One per line:  written: how it sounds"]
+    entry = f"{json.dumps(word)}: {json.dumps(say)}"
+    for i, line in enumerate(lines):
+        if not line.lstrip().startswith("#") and ":" in line:
+            key = yaml.safe_load(line.split("#", 1)[0] or "{}") or {}
+            if isinstance(key, dict) and str(next(iter(key), "")).lower() == word.lower():
+                lines[i] = entry
+                break
+    else:
+        lines.append(entry)
+    _write_checked(path, "\n".join(lines) + "\n")
+    return "pronunciations.yaml"
+
+
+def remove(data_dir: Path, word: str) -> bool:
+    """Remove a pronunciation (from either file). Returns whether one was found."""
+    found = False
+    people_path = data_dir / "people.yaml"
+    if people_path.is_file():
+        lines = people_path.read_text(encoding="utf-8").splitlines()
+        block = _person_block(lines, word)
+        if block:
+            kept = [line for i, line in enumerate(lines)
+                    if not (block[0] <= i < block[1] and line.strip().startswith("pronounce:"))]
+            if len(kept) != len(lines):
+                _write_checked(people_path, "\n".join(kept) + "\n")
+                found = True
+    path = data_dir / "pronunciations.yaml"
+    if path.is_file():
+        lines = path.read_text(encoding="utf-8").splitlines()
+        kept = []
+        for line in lines:
+            key = None
+            if not line.lstrip().startswith("#") and ":" in line:
+                parsed = yaml.safe_load(line.split("#", 1)[0] or "{}")
+                key = str(next(iter(parsed), "")) if isinstance(parsed, dict) else None
+            if key is not None and key.lower() == word.lower():
+                found = True
+                continue
+            kept.append(line)
+        if len(kept) != len(lines):
+            _write_checked(path, "\n".join(kept) + "\n")
+    return found
