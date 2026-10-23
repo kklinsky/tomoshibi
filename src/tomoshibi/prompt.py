@@ -43,6 +43,9 @@ RULES = """\
 - Never pretend to have done something you haven't, such as sending a message.
 - Before you look something up or check the weather, say a few words first, like
   "Let me check." Then give the answer once, simply, without sources or web addresses.
+- Everything you write after a search is read aloud, including the passages you quote
+  from the results. Say each fact once: don't state something in your own words and
+  then quote a result that says the same thing.
 """
 
 

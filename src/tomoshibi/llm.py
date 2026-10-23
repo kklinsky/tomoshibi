@@ -1,6 +1,7 @@
 """LLM providers behind one small interface (docs/DESIGN.md §5)."""
 
 import os
+import re
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Protocol
@@ -87,7 +88,7 @@ class AnthropicProvider:
             {"type": "text", "text": stable_system, "cache_control": {"type": "ephemeral"}},
             {"type": "text", "text": volatile_system},
         ]
-        spoke = False  # separate text blocks (e.g. "Let me check." and the answer) need a space
+        text = ReplyText()
         for _ in range(MAX_TOOL_ROUNDS):
             try:
                 with self._client.messages.stream(
@@ -100,12 +101,7 @@ class AnthropicProvider:
                     **kwargs,
                 ) as stream:
                     for event in stream:
-                        if event.type == "content_block_start" and event.content_block.type == "text":
-                            if spoke:
-                                yield " "
-                        elif event.type == "content_block_delta" and event.delta.type == "text_delta":
-                            spoke = True
-                            yield event.delta.text
+                        yield from text.feed(event)
                     final = stream.get_final_message()
             except ValueError as e:  # a tool input the SDK couldn't parse at all
                 raise ProviderError(f"unreadable tool input: {e}") from e
@@ -147,6 +143,60 @@ class AnthropicProvider:
             return {"type": "tool_result", "tool_use_id": block.id, "is_error": True,
                     "content": f"INVALID_INPUT: {e}"}
         return {"type": "tool_result", "tool_use_id": block.id, "content": output}
+
+
+class ReplyText:
+    """Turns stream events into the text to speak.
+
+    After a web search the answer arrives as a run of text blocks that join as they are
+    (they carry their own spaces); the blocks with citations quote the results. Haiku often
+    says a fact in its own words and then quotes a result saying the same thing, so a
+    quoted block is held until it ends and dropped if it only restates what was said.
+    """
+
+    def __init__(self):
+        self.since_gap = ""  # what was said since the last search or tool call
+        self.gap = False     # a search or tool call came after something was said
+        self.quote = None    # the cited block being held, or None
+
+    def feed(self, event) -> Iterator[str]:
+        if event.type == "content_block_start":
+            block = event.content_block
+            if block.type == "text":
+                self.quote = "" if getattr(block, "citations", None) is not None else None
+            elif block.type not in ("thinking", "redacted_thinking") and self.since_gap:
+                self.gap = True
+        elif event.type == "content_block_delta" and event.delta.type == "text_delta":
+            if self.quote is None:
+                yield from self._say(event.delta.text)
+            else:
+                self.quote += event.delta.text
+        elif event.type == "content_block_stop" and self.quote is not None:
+            quote, self.quote = self.quote, None
+            if not restates(quote, self.since_gap):
+                yield from self._say(quote)
+
+    def _say(self, text: str) -> Iterator[str]:
+        if not text:
+            return
+        if self.gap:  # e.g. "Let me check." and the answer after the search need a space
+            if not (self.since_gap[-1:].isspace() or text[:1].isspace()):
+                text = " " + text
+            self.gap = False
+            self.since_gap = ""
+        self.since_gap += text
+        yield text
+
+
+def restates(quote: str, said: str) -> bool:
+    """A quoted sentence that stands on its own and adds no number to what was just said,
+    like "The 2026 election is Tuesday, Nov. 3, 2026." after "The next election is on
+    Tuesday, November 3, 2026." A quote that finishes a sentence is never dropped."""
+    quote = quote.strip()
+    standalone = (quote[:1].isupper() and quote.endswith((".", "!", "?"))
+                  and said.rstrip().endswith((".", "!", "?")))
+    numbers = set(re.findall(r"\d+", quote))
+    return standalone and bool(numbers) and numbers <= set(re.findall(r"\d+", said))
 
 
 def _without_thinking(message: dict) -> dict:
