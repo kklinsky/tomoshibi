@@ -829,8 +829,24 @@ A small web page on the device for the **critical settings that keep it working*
 | **Family Slack** | App and bot tokens, with **Send test message** |
 | **Basics** | Volume, speaking speed, quiet hours, internet lookups on/off (§8a) |
 | **Status** | The `tomoshibi doctor` checks, connectivity (§5), current version, **Update** and **Roll back** (§10a) |
+| **Pronunciations** | The pronunciation tester (below) |
 
-Out of scope: people, reminders, memories and other personal content. Those stay with the private data files, Slack, and voice. The setup page is for keeping the device running, not for running Dad's life.
+Out of scope: people, reminders, memories and other personal content. Those stay with the private data files, Slack, and voice. The setup page is for keeping the device running, not for running Dad's life. Pronunciations are the one exception: they're hard to get right without hearing them, so the page has a small tool for them.
+
+### Pronunciation tester
+Names with unusual spellings (Ami, Roben, Sharyn, Meryl) are the most common thing the voice gets wrong, and the fix can only be judged by ear. The tester makes that a few seconds' work instead of a round trip through files:
+
+1. **Type the word as written** ("Meryl") and, optionally, a sentence to hear it in. The default sentence uses it naturally: *"Meryl called today, Arnold."*
+2. **Play it as it is now.** It uses the device's own voice, speed and existing pronunciations, so what you hear is exactly what Dad hears.
+3. **Type how it should sound** ("Meril", "Mer-ill") and **play again**. Try as many spellings as needed; the last few stay listed for comparison.
+4. **Choose where to listen:** **in your browser** (the audio is streamed to your phone or laptop) or **on the device's speaker** (useful when you're in the room, to check it through the Jabra at its real volume).
+5. **Save.** If the word is someone's first name in `people.yaml`, it's saved there as `pronounce:`; otherwise in `pronunciations.yaml`. It takes effect on the next sentence Tomo speaks.
+
+Also on the page:
+- **The current list** of pronunciations, each with **Play**, **Edit** and **Remove**.
+- **Advanced: phonetic spelling.** For words no respelling fixes, Kokoro can take phonemes (IPA) directly; the field is there but folded away.
+- **Saved changes are recorded** like other setup changes (who, when), and listed for `tomoshibi kb pull`, which copies changes made on the device back to the family's private data repo (§6.2) so the device and the repo don't drift apart.
+- **Speaking out loud on the device** is refused while Tomo is in a conversation or during quiet hours, so testing never talks over Dad or wakes anyone.
 
 ### How it's reached
 1. **Setup hotspot.** The device creates its own Wi-Fi network, **"Tomoshibi-Setup"**, when either:
