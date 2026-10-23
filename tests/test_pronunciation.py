@@ -67,3 +67,18 @@ def test_remove_from_person(tmp_path: Path):
     (tmp_path / "people.yaml").write_text(PEOPLE, encoding="utf-8")
     assert remove(tmp_path, "Meryl")
     assert entries(tmp_path) == []
+
+
+def test_homographs_lives_and_live():
+    from tomoshibi.pronunciation import fix_homographs as f
+
+    assert f("Taylor lives in Dallas, Texas.") == "Taylor livs in Dallas, Texas."
+    assert f("Meryl lives nearby, and Simon lives with Ami.") == "Meryl livs nearby, and Simon livs with Ami."
+    assert f("Lives in Atlanta.") == "Livs in Atlanta."
+    assert f("Where does Ami live?") == "Where does Ami liv?"
+    assert f("Ami wants to live there.") == "Ami wants to liv there."
+    assert f("We watched it live.") == "We watched it live."
+    assert f("Did they watch it live?") == "Did they watch it live?"
+    assert f("Cats have nine lives.") == "Cats have nine lives."   # the noun is left alone
+    assert f("We watched the game live.") == "We watched the game live."
+    assert f("She delivers.") == "She delivers."

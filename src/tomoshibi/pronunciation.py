@@ -40,6 +40,27 @@ def load(data_dir: Path) -> dict[str, str]:
     return words
 
 
+# Words spelled the same but said differently depending on use (homographs), which the
+# voice guesses wrong in Tomo's everyday sentences. Applied for every family, before their
+# own pronunciations. "Taylor lives in Dallas" was said "lyvz", like "nine lives".
+_PLACE = (r"in|on|at|near|nearby|with|by|alone|there|here|next|close|just|about|outside|"
+          r"across|around|over|up|down|far|together|abroad|downtown|upstairs|downstairs|"
+          r"somewhere|anywhere|right|still|now|only|mostly")
+_AUX = r"does|do|did|to|can|will|would|could|should|might|must|don't|doesn't|didn't"
+HOMOGRAPHS = [
+    # "lives in / near / with ..." is the verb: livz
+    (re.compile(rf"\b(L|l)ives(?=\s+(?:{_PLACE})\b)"), r"\1ivs"),
+    # "where does Ami live?", "wants to live" is the verb: liv
+    (re.compile(rf"\b((?:{_AUX})\s+(?:[\w']+\s+){{0,1}})(L|l)ive\b", re.IGNORECASE), r"\1\2iv"),
+]
+
+
+def fix_homographs(text: str) -> str:
+    for pattern, replacement in HOMOGRAPHS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 class Pronouncer:
     def __init__(self, words: dict[str, str]):
         self.words = {w.lower(): s for w, s in words.items()}
@@ -47,6 +68,7 @@ class Pronouncer:
                                     + r")\b", re.IGNORECASE) if words else None)
 
     def apply(self, text: str) -> str:
+        text = fix_homographs(text)
         if not self._pattern:
             return text
         return self._pattern.sub(lambda m: self.words[m.group(0).lower()], text)
