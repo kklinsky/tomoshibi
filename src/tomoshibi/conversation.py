@@ -64,8 +64,8 @@ class Conversation:
 
         cfg.load_secrets()
         self.provider = llm.from_config(conf)
-        self.stable = prompt.stable_prompt(paths.data_dir(), conf)
-        self.pronouncer = Pronouncer(pronunciation.load(paths.data_dir()))
+        self._data_stamp = None
+        self._reload_data()
         self.tools, self.web_search = self._lookups(conf)
         if self.tools or self.web_search:
             status("lookups on: " + ", ".join([t.name for t in self.tools]
@@ -180,8 +180,26 @@ class Conversation:
         return text
 
     # --- answering --------------------------------------------------------------------
+    def _data_files(self) -> list[Path]:
+        data = paths.data_dir()
+        files = [data / n for n in ("persona.yaml", "profile.yaml", "people.yaml", "pronunciations.yaml")]
+        return files + sorted((data / "wiki").glob("*.md"))
+
+    def _reload_data(self) -> None:
+        """(Re)read the family's files when any of them changed, so edits made while Tomo is
+        running (the pronunciation tester, a new wiki page) apply from the next answer."""
+        stamp = tuple((str(f), f.stat().st_mtime_ns) for f in self._data_files() if f.exists())
+        if stamp == self._data_stamp:
+            return
+        if self._data_stamp is not None:
+            status("family data changed: reloading")
+        self._data_stamp = stamp
+        self.stable = prompt.stable_prompt(paths.data_dir(), self.conf)
+        self.pronouncer = Pronouncer(pronunciation.load(paths.data_dir()))
+
     def respond(self, text: str) -> bool:
         """Stream and speak the reply. Returns True if the button interrupted it."""
+        self._reload_data()
         self.history.append({"role": "user", "content": text})
         self.pressed.clear()
         t0 = time.perf_counter()
