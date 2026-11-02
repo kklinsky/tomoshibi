@@ -31,15 +31,15 @@ beautifully, but the character design is up to you.
 | | |
 |---|---|
 | Size | **2.0 inches** diagonal (about the size of a large postage stamp) |
-| Resolution | **320 × 240 pixels**, landscape (wider than tall) |
-| Face area | The **top 320 × 168 pixels**. The bottom 72 pixels are reserved for a day/time strip ("Saturday afternoon · 2:15") that the software draws |
+| Resolution | **240 × 320 pixels**, **portrait** (taller than wide) |
+| Face area | The **top 240 × 240 pixels** (a square). The bottom 80 pixels are reserved for a day/time strip ("Saturday" over "afternoon · 2:15") that the software draws |
 | Colors | Full color IPS screen. Looks best with a **dark background** and **warm, soft colors** |
 | Frame rate | About 20 frames per second |
 
 Because the screen is tiny and viewed from a distance:
 - Use **thick, bold shapes** and **strong contrast**. Fine lines and small details disappear.
 - Big eyes do most of the work. The mouth can be simple.
-- Before finishing, **look at your drawing at actual size** (2 inches across, about 5 cm) from
+- Before finishing, **look at your drawing at actual size** (the face area is about 3 cm wide) from
   2–3 meters away. If you can't tell "listening" from "idle" at that distance, push it further.
 
 ### Color suggestions
@@ -54,7 +54,7 @@ Because the screen is tiny and viewed from a distance:
 Instead of drawing every animation frame, draw the face as **separate parts**. The
 software layers them on top of each other and moves them to create the animations.
 
-**The one rule:** draw every part on its own **320 × 168 pixel transparent canvas, in the exact
+**The one rule:** draw every part on its own **240 × 240 pixel transparent canvas, in the exact
 position where it sits on the face.** Then all the files line up perfectly when stacked,
 like layers in your drawing app. (Easiest way: draw the whole face with each part on its
 own layer, then export each layer separately at full canvas size.)
@@ -108,7 +108,7 @@ If you're making any frame-by-frame transitions, about 10–20 frames at 20 fps 
 
 ## 5. Parts checklist (what to deliver)
 
-All files are **PNG with transparency**, full **320 × 168** canvas (except where noted),
+All files are **PNG with transparency**, full **240 × 240** canvas (except where noted),
 named exactly as below. Names are lowercase with underscores.
 
 ### Eyes
@@ -209,7 +209,8 @@ Then:
    made yet are filled in with a simple sample face, so you can test one part at a time.
 2. Press **Conversation**, **Reminder** or **Night and morning** to watch a full scene, or click
    individual states, expressions and transitions.
-3. Use **Real size** (set it up once with a bank card) and step back across the room.
+3. Use **Real size** (set it up once with a bank card, and pick the screen size) and step back
+   across the room.
 4. The **Check your files** list flags wrong sizes, missing transparency and misspelled names.
 5. **Make preview sheet** builds the `preview_states.png` to include with your delivery.
 

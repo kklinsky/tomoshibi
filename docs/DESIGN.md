@@ -39,7 +39,7 @@ This section covers the core parts and design decisions. The full parts list (po
 | Raspberry Pi 5 | **8 GB recommended** if running a local fallback LLM; 4 GB is fine for STT/TTS only. Active cooler, official 27 W USB-C PSU, RTC battery. |
 | Jabra Speak 410 (USB) | Full-duplex speakerphone with echo cancellation, good pickup across a room. Appears as a standard USB audio device. **Its touch buttons (mute, volume, call) are easy to hit by accident.** The enclosure should cover mute/call, or the software should detect mute and say "I'm muted, press the button with the line through it." |
 | **30 mm** arcade button with built-in LED | Smaller than first planned, because the top of the enclosure is taken by the Jabra. Placement and making it easy to find are covered under *Enclosure layout* below. Input on a GPIO with internal pull-up. **Check the LED voltage:** most are 5 V or 12 V with an internal resistor. GPIO pins are 3.3 V / ~16 mA, so drive the LED through a small N-channel MOSFET or NPN transistor (5 V from the Pi header). The LED is on only while listening (§4), so simple on/off is enough; PWM allows a soft fade. |
-| 2.0" 320×240 IPS TFT, ST7789 (Adafruit EYESPI) | SPI. Connect via an EYESPI adapter (e.g. EYESPI Pi Beret) or jumper wires to SPI0. The microSD slot on the breakout isn't needed. |
+| 2.0" 240×320 IPS TFT, ST7789 (Adafruit EYESPI) | Mounted in **portrait** (taller than wide). SPI. Connect via an EYESPI adapter (e.g. EYESPI Pi Beret) or jumper wires to SPI0. The microSD slot on the breakout isn't needed. |
 | 3D-printed enclosure (Fusion 360) | Lantern/lamp form to suit the name. Jabra on top, screen and button on the front (see below). Weighted base, cable strain relief, ventilation for the Pi. Lives in its own repo, `tomoshibi-enclosure` (§11). |
 
 ### Brand mark
@@ -50,10 +50,13 @@ The wordmark **tomo** in **Fredoka SemiBold**, lamplight `#f2b45a` on night `#1e
         ┌──────────────────────┐   ← Jabra Speak 410 sits in a recess on top,
         │  ( Jabra, grille up ) │     grille open to the room; printed cover ring
         ├──────────────────────┤     hides its mute/call touch keys
-        │   ┌──────────────┐   │
-        │   │  ◕‿◕  (face)  │   │   ← 2.0" screen, front face angled ~15° up
-        │   │ Sat afternoon │   │     toward a seated person
-        │   └──────────────┘   │
+        │     ┌──────────┐     │
+        │     │          │     │
+        │     │   ◕‿◕    │     │   ← 2.0" screen in portrait, front face
+        │     │          │     │     angled ~15° up toward a seated person
+        │     │ Saturday │     │
+        │     │ afternoon│     │
+        │     └──────────┘     │
         │         (●)          │   ← 30 mm lit button directly below the face
         │                      │
         └──────────────────────┘   weighted base; USB-C power + Jabra cable out the back
@@ -93,7 +96,7 @@ The artist-facing spec (states, expressions, transitions, the parts checklist an
 | **Offline / problem** | Normal face; an amber offline icon in the orientation strip (§5); never a sad or broken face | — |
 
 #### Orientation strip
-The face takes the upper ~70% of the screen. A **strip along the bottom always shows the day and time of day**, e.g. "Saturday afternoon · 2:15". The day/date clock is a well-known orientation aid, so it stays visible under the face instead of being lost to it. A press-free "full clock" (large day, date, time) takes over the whole screen for a few seconds after the morning greeting, or when he asks "what day is it?".
+The screen is portrait, 240×320: the face takes the **top 240×240 square**, and an 80-pixel **strip along the bottom always shows the day and time of day** on two lines, e.g. "Saturday" over "afternoon · 2:15". The day/date clock is a well-known orientation aid, so it stays visible under the face instead of being lost to it. A press-free "full clock" (large day, date, time) takes over the whole screen for a few seconds after the morning greeting, or when he asks "what day is it?".
 
 #### Cards (temporary, then back to the face)
 - **Reminder:** large text ("Morning pills — blue box by the sink"), with a small version of the face in the corner.
@@ -103,7 +106,8 @@ The face takes the upper ~70% of the screen. A **strip along the bottom always s
 #### Implementation
 - **Lip sync from the audio, not the text.** The mouth opening follows the loudness (RMS envelope) of the TTS audio as it plays, in ~30 ms windows, mapped to 3–5 mouth shapes. Works with any TTS engine. Piper can also output phoneme timings, which allow true viseme mouth shapes later if the simple version feels off.
 - **Rendering:** a separate display process/thread draws frames with Pillow from **pre-drawn sprite parts** (eye shapes, eyelids, mouths, pupils) composited per frame, and pushes them over SPI. It runs independently so audio never stutters.
-- **Frame rate:** 320×240 at 16-bit color is ~150 KB/frame. At the ST7789's SPI clock that's roughly 25–40 fps maximum, so target **~20 fps**, redrawing only the changed region (eyes/mouth bounding boxes) to keep CPU low.
+- **Portrait:** the ST7789's native layout is 240 wide × 320 tall, so portrait needs no rotation (MADCTL default). If the panel is mounted upside down, use a 180° rotation in software rather than reprinting the bezel.
+- **Frame rate:** 240×320 at 16-bit color is ~150 KB/frame. At the ST7789's SPI clock that's roughly 25–40 fps maximum, so target **~20 fps**, redrawing only the changed region (eyes/mouth bounding boxes) to keep CPU low.
 - **Face packs for forks:** a face is a folder of sprite PNGs plus a `face.json` (positions, expression definitions, palette). The default face ships in `assets/faces/tomoshibi/`. Families can swap in another (e.g. a lantern-flame character, or a pet-like face) without touching code. The browser-based Face Previewer (`tools/face-previewer/index.html`) animates a face pack on a replica of the screen for design work off-device.
 - **Brightness:** dims automatically at night/quiet hours. Optional light sensor later.
 

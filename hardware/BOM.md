@@ -17,7 +17,7 @@ Wiring is documented in [wiring.md](wiring.md).
 | Raspberry Pi 5 | 1 | **8 GB recommended** if you want the local fallback LLM; 4 GB is enough for local speech only |
 | Jabra Speak 410 (USB) | 1 | Speakerphone with echo cancellation. Sits on top of the enclosure. Its USB cable is fixed and fairly long; plan strain relief and where the extra length coils inside |
 | 30 mm arcade button with LED: [Adafruit #3491](https://www.adafruit.com/product/3491) (translucent clear), or the yellow LED version from the same family | 1 | 30 mm mounting hole, screw-in nut for panels up to ~20 mm thick. Micro-switch with a soft action (no strong click). **LED: 5 V, ~10 mA, 200 Ω resistor built in.** It's only ~2 mA (dim) at 3.3 V, so it's switched from 5 V through a transistor. 0.11" (2.8 mm) quick-connect terminals. Yellow is easier to see when unlit and suits the "lamplight" theme |
-| 2.0" 320×240 IPS TFT, ST7789, with EYESPI breakout (Adafruit) | 1 | SPI display for the animated face. The microSD slot on the breakout isn't used |
+| 2.0" 240×320 IPS TFT, ST7789, with EYESPI breakout (Adafruit) | 1 | SPI display for the animated face, mounted in **portrait** (taller than wide). The microSD slot on the breakout isn't used |
 
 ### Power, cooling and timekeeping
 | Part | Qty | Notes |

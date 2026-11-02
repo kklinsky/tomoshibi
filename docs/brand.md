@@ -39,7 +39,7 @@ uv run --no-project --with fonttools --with pillow python scripts/make_wordmark.
   (§10b of the design doc), and in the setup page's header.
 - Drawn from the bundled font (`assets/fonts/fredoka/Fredoka[wdth,wght].ttf`, variable:
   set weight 600, width 100), so it works offline.
-- At least **28 px tall** on the 320 × 240 screen so its rounded shapes stay clean.
+- At least **28 px tall** on the 240 × 320 portrait screen so its rounded shapes stay clean.
 - It doesn't appear on the everyday face screen: the face is the character, and the mark
   would compete with it.
 
