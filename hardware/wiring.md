@@ -13,12 +13,11 @@ How the display, button and button light connect to the Raspberry Pi 5. Parts ar
 | 2 | 5V | Button LED + |
 | 6 | GND | Display pin 1 (VSS) |
 | 9 | GND | Display pin 40 (VSS) |
-| 12 | GPIO18 | Display pin 29 (BL_ON/OFF), once the backlight is checked (below) |
+| 12 | GPIO18 | Display pin 29 (BL_ON/OFF) |
 | 13 | GPIO27 | Display pin 21 (/RESET_NC) |
 | 14 | GND | Button switch, LED driver |
 | 15 | GPIO22 | Button switch |
 | 16 | GPIO23 | LED driver input |
-| 17 | 3.3V | Display pin 29 (BL_ON/OFF), until the backlight is checked |
 | 19 | GPIO10 (SPI0 MOSI) | Display pin 27 (LCD_SDI) |
 | 22 | GPIO25 | Display pin 25 (/WR(D/C)) |
 | 23 | GPIO11 (SPI0 SCLK) | Display pin 24 (D/C(SCL)) |
@@ -39,7 +38,7 @@ mounted in portrait.
 | 24 | D/C(SCL) | **SPI clock** | 23 |
 | 25 | /WR(D/C) | **Data/command select** | 22 |
 | 27 | LCD_SDI | SPI data in | 19 |
-| 29 | BL_ON/OFF | Backlight: high = on, low = off | 17 for now, then 12 |
+| 29 | BL_ON/OFF | Backlight: high = on, low = off | 12 |
 
 **Pins 24 and 25 are easy to swap.** Their names come from the parallel interface, and in SPI
 pin 24 is the clock and pin 25 is data/command. Leave every other display pin unconnected,
@@ -83,12 +82,14 @@ for it. Whole-module current is 95 mA typical and 110 mA maximum at 3.3 V. The b
 own backlight driver parts (Q1, U5, R30–R32), so the pin probably draws little, but that hasn't
 been traced or measured.
 
-Start with pin 29 on 3.3 V (Pi pin 17), which is how the vendor's sample code wires it. To
-dim or turn off the backlight, it has to move to GPIO18 (Pi pin 12):
+On a new build, measure the current from 3.3 V into pin 29 with a multimeter before connecting
+it to GPIO18 (Pi pin 12). If it's a few mA or less, connect it directly. If it's more, drive it
+through a transistor. The vendor's sample code ties it to 3.3 V, which works for a first test
+but leaves the backlight on all the time.
 
-1. Measure the current from 3.3 V into pin 29 with a multimeter.
-2. If it's a few mA or less, connect pin 29 straight to Pi pin 12.
-3. If it's more, drive it through a transistor instead of the GPIO pin.
+The software keeps GPIO18 low until the first picture is ready, so the panel never shows a
+white flash at startup. For now it's only on or off; dimming at night darkens the picture
+instead.
 
 ### First test
 

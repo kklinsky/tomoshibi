@@ -10,6 +10,7 @@ display:
   spi_hz: 33400000              # clean up to 50 MHz on the bench; see hardware/wiring.md
   dc_pin: 25
   reset_pin: 27
+  backlight_pin: 18
 
 speech:
   stt_model: whisper-base-en          # name from models.lock

@@ -77,6 +77,23 @@ class Pose:
     dim: float = 0
 
 
+def font(size: int, weight: int) -> ImageFont.FreeTypeFont:
+    """Fredoka at a size and weight; it's bundled, so it works offline."""
+    loaded = ImageFont.truetype(paths.assets_dir() / "fonts/fredoka/Fredoka[wdth,wght].ttf", size)
+    loaded.set_variation_by_axes([weight if a["name"] == b"Weight" else 100
+                                  for a in loaded.get_variation_axes()])
+    return loaded
+
+
+def boot_frame() -> Image.Image:
+    """The startup screen: the wordmark in lamplight on night (docs/brand.md)."""
+    frame = Image.new("RGB", (WIDTH, HEIGHT), BACKGROUND)
+    draw = ImageDraw.Draw(frame)
+    draw.text((WIDTH / 2, HEIGHT / 2 - 8), "tomo", fill="#f2b45a", font=font(72, 600), anchor="mm")
+    draw.text((WIDTH / 2, HEIGHT / 2 + 50), "Starting up…", fill="#a99fb6", font=font(18, 500), anchor="mm")
+    return frame
+
+
 def load_parts(folder: Path | None = None) -> dict[str, Image.Image]:
     folder = folder or paths.assets_dir() / "faces" / "tomoshibi"
     parts = {f.stem: Image.open(f).convert("RGBA") for f in sorted(folder.glob("*.png"))}
@@ -99,16 +116,7 @@ class Face:
         self.smoothed_level = 0.0
         self.layers: OrderedDict = OrderedDict()  # recent poses, so repeats cost nothing
         self.strip_key, self.strip = None, None
-        self.fonts = self._load_fonts()
-
-    def _load_fonts(self):
-        fonts = []
-        for size, weight in ((24, 600), (18, 500)):
-            font = ImageFont.truetype(paths.assets_dir() / "fonts/fredoka/Fredoka[wdth,wght].ttf", size)
-            font.set_variation_by_axes([weight if a["name"] == b"Weight" else 100
-                                        for a in font.get_variation_axes()])
-            fonts.append(font)
-        return fonts
+        self.fonts = [font(24, 600), font(18, 500)]
 
     def play(self, name: str, now: float) -> None:
         self.transition = (name, now)
@@ -315,6 +323,8 @@ class FaceScreen:
             started = time.monotonic()
             rgb = np.asarray(self.face.frame(started - origin))
             self.sent += bool(self.screen.show(rgb))
+            if self.frames == 0:
+                self.screen.backlight(True)  # only once there's a picture to light
             self.frames += 1
             self.busy += time.monotonic() - started
             self.stopping.wait(max(0.0, 1 / FPS - (time.monotonic() - started)))

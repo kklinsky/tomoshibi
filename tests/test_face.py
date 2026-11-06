@@ -26,6 +26,9 @@ class FakeBus:
     def reset(self):
         pass
 
+    def backlight(self, on):
+        self.lit = on
+
     def write(self, command, data=b""):
         self.writes.append((command, data))
 
@@ -90,6 +93,28 @@ def test_missing_parts_are_left_out(the_face):
 
 def test_preview_sheet(the_face):
     assert isinstance(face.preview_sheet(the_face), Image.Image)
+
+
+def test_boot_frame_shows_the_wordmark_in_lamplight(monkeypatch):
+    monkeypatch.setenv("TOMOSHIBI_ASSETS", str(ASSETS))
+    frame = face.boot_frame()
+    assert frame.size == (WIDTH, HEIGHT)
+    assert (np.asarray(frame) == (0xF2, 0xB4, 0x5A)).all(axis=2).sum() > 500
+
+
+def test_backlight_stays_off_until_the_first_frame(the_face):
+    bus = FakeBus()
+    bus.lit = False
+    screen = ST7789(bus)
+    assert not bus.lit
+    runner = face.FaceScreen(the_face, screen)
+    runner.start()
+    while not runner.frames:
+        pass
+    runner.stop()
+    assert bus.lit
+    screen.off()
+    assert not bus.lit
 
 
 def test_rgb565():

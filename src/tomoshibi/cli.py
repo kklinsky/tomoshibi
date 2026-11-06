@@ -8,6 +8,8 @@ from tomoshibi import __version__, models, paths
 
 
 def run_face(args) -> int:
+    import numpy as np
+
     from tomoshibi import config, face
 
     the_face = face.Face(face.load_parts())
@@ -21,10 +23,16 @@ def run_face(args) -> int:
     settings = config.load(args.config)
     bus = display.SpiBus(spi_hz=int(config.get(settings, "display.spi_hz", 33_400_000)),
                          dc_pin=int(config.get(settings, "display.dc_pin", 25)),
-                         reset_pin=int(config.get(settings, "display.reset_pin", 27)))
+                         reset_pin=int(config.get(settings, "display.reset_pin", 27)),
+                         backlight_pin=int(config.get(settings, "display.backlight_pin", 18)))
     screen = display.ST7789(bus)
     the_face.pretend_voice = True
     the_face.mode, the_face.expression = args.mode, args.expression
+    if args.startup:
+        screen.show(np.asarray(face.boot_frame()))
+        screen.backlight(True)
+        time.sleep(args.startup)
+        the_face.play("wake", 0.0)
     runner = face.FaceScreen(the_face, screen)
     runner.start()
     end = time.monotonic() + args.seconds
@@ -79,6 +87,8 @@ def main(argv: list[str] | None = None) -> int:
     face.add_argument("--expression", default="none", help="happy, concerned, curious or lookup")
     face.add_argument("--demo", action="store_true", help="step through every state in a loop")
     face.add_argument("--seconds", type=float, default=30, help="how long to run")
+    face.add_argument("--startup", type=float, metavar="SECONDS",
+                      help="show the startup screen this long first, then wake up")
     face.add_argument("--sheet", type=Path, help="save a PNG of every state; no screen needed")
     face.add_argument("--config", type=Path, help="path to config.yaml")
 

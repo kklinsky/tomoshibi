@@ -55,18 +55,21 @@ class SpiBus:
     """SPI0 plus the data/command and reset pins. Holds the pins for as long as it's open,
     since a released reset pin can drift low and blank the panel."""
 
-    def __init__(self, spi_hz: int = 33_400_000, dc_pin: int = 25, reset_pin: int = 27):
+    def __init__(self, spi_hz: int = 33_400_000, dc_pin: int = 25, reset_pin: int = 27,
+                 backlight_pin: int = 18):
         import fcntl
 
         import gpiod
         from gpiod.line import Direction, Value
 
-        self.dc_pin, self.reset_pin = dc_pin, reset_pin
+        self.dc_pin, self.reset_pin, self.backlight_pin = dc_pin, reset_pin, backlight_pin
         self.low, self.high = Value.INACTIVE, Value.ACTIVE
         self.pins = gpiod.request_lines(  # gpiochip0 is the Pi 5's header
             "/dev/gpiochip0", consumer="tomoshibi-display",
             config={(dc_pin, reset_pin): gpiod.LineSettings(direction=Direction.OUTPUT,
-                                                            output_value=Value.ACTIVE)})
+                                                            output_value=Value.ACTIVE),
+                    backlight_pin: gpiod.LineSettings(direction=Direction.OUTPUT,
+                                                      output_value=Value.INACTIVE)})
         # Plain file access: the kernel's spidev needs no compiled Python package.
         self.spi = os.open(SPI_DEVICE, os.O_WRONLY)
         fcntl.ioctl(self.spi, SPI_IOC_WR_MODE, struct.pack("B", 0))
@@ -78,6 +81,9 @@ class SpiBus:
         time.sleep(0.02)
         self.pins.set_value(self.reset_pin, self.high)
         time.sleep(0.15)
+
+    def backlight(self, on: bool) -> None:
+        self.pins.set_value(self.backlight_pin, self.high if on else self.low)
 
     def write(self, command: int, data: bytes = b"") -> None:
         self.pins.set_value(self.dc_pin, self.low)
@@ -117,5 +123,9 @@ class ST7789:
         self.shown = pixels
         return True
 
+    def backlight(self, on: bool) -> None:
+        self.bus.backlight(on)
+
     def off(self) -> None:
+        self.bus.backlight(False)
         self.bus.write(0x28)
