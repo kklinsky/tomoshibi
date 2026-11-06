@@ -58,7 +58,7 @@ def test_save_to_person_keeps_comments(tmp_path: Path):
 def test_save_and_remove_other_words(tmp_path: Path):
     from tomoshibi.pronunciation import entries, remove, save
 
-    (tmp_path / "pronunciations.yaml").write_text("# words\nTommi: Jee-jee  # nickname\n", encoding="utf-8")
+    (tmp_path / "pronunciations.yaml").write_text("# words\nGigi: Jee-jee  # nickname\n", encoding="utf-8")
     assert save(tmp_path, "Naples", "Nay-pulls") == "pronunciations.yaml"
     assert save(tmp_path, "gigi", "Gee-gee") == "pronunciations.yaml"
     assert {e["word"].lower(): e["say"] for e in entries(tmp_path)} == {"naples": "Nay-pulls", "gigi": "Gee-gee"}
