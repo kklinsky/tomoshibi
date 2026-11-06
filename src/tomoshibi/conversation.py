@@ -3,8 +3,8 @@
 press -> chime -> listen -> transcribe -> stream reply -> speak sentence by sentence ->
 listen for a follow-up -> ... -> back to idle when nobody speaks.
 
-For now a keyboard key stands in for the arcade button, and the face and button light
-are shown as lines in the terminal.
+For now a keyboard key stands in for the arcade button, and the button light is shown as
+lines in the terminal.
 """
 
 import re
@@ -23,8 +23,10 @@ from tomoshibi import events as events_mod
 from tomoshibi import stt as stt_mod
 from tomoshibi import tts as tts_mod
 from tomoshibi.events import Events
+from tomoshibi.face import NoFace
 from tomoshibi.pronunciation import Pronouncer
 from tomoshibi.sentences import SentenceSplitter
+from tomoshibi.setup_page import in_quiet_hours
 from tomoshibi.vad import Endpointer, SileroVAD
 from tomoshibi.weather import US_STATES as _US
 
@@ -42,9 +44,10 @@ def status(text: str) -> None:
 
 class Conversation:
     def __init__(self, conf: dict, lock_path: Path, typed: bool = False,
-                 stt_name: str | None = None, tts_name: str | None = None):
+                 stt_name: str | None = None, tts_name: str | None = None, face=None):
         self.conf = conf
         self.typed = typed
+        self.face = face or NoFace()
         specs = models.load_lock(lock_path)
         device = cfg.get(conf, "audio.device", audio.DEFAULT_DEVICE)
         self.end_silence = cfg.seconds(cfg.get(conf, "conversation.end_of_speech_silence"), 1.5)
@@ -56,7 +59,7 @@ class Conversation:
         status(f"loading voice {tts_spec.name}")
         self.tts = tts_mod.load(tts_spec, length_scale=float(cfg.get(conf, "speech.tts_speed", 1.1)),
                                 voice=cfg.get(conf, "speech.tts_voice"))
-        self.speaker = audio.Speaker(device)
+        self.speaker = audio.Speaker(device, on_level=self.face.voice)
         if not typed:
             stt_spec = models.find(specs, stt_name or cfg.get(conf, "speech.stt_model")) \
                 if (stt_name or cfg.get(conf, "speech.stt_model")) else models.first_of_kind(specs, "stt")
@@ -138,10 +141,12 @@ class Conversation:
         self.start_button()
         status("idle: face relaxed, light off")
         while True:
+            self.face.rest(in_quiet_hours(self.conf))
             if self.pressed.wait(timeout=10):
                 self.pressed.clear()
                 self.session()
                 status("idle: face relaxed, light off")
+                self.face.rest(in_quiet_hours(self.conf))
             if self.give_due_reminders():
                 status("idle: face relaxed, light off")
 
@@ -154,7 +159,8 @@ class Conversation:
 
     def session(self, first_text: str = "", note: str = "") -> None:
         if not first_text:
-            self.speaker.play(audio.chime(), 24_000)
+            self.face.notice()
+            self.speaker.play(audio.chime(), 24_000, voice=False)
             self.speaker.finish()
             self.speaker.wait()
         wait = self.first_wait
@@ -182,7 +188,8 @@ class Conversation:
         words = [events_mod.reminder_words(r, self.person, now) for r in due]
         status("reminder: face wakes and looks up")
         print("  reminder: " + " ".join(words), flush=True)
-        self.speaker.play(*self.reminder_tune)
+        self.face.ahem()
+        self.speaker.play(*self.reminder_tune, voice=False)
         for sentence in words:
             self._speak(sentence, [])
         self.speaker.finish()
@@ -231,6 +238,7 @@ class Conversation:
     # --- listening --------------------------------------------------------------------
     def listen(self, wait: float) -> str:
         status(f"listening: face attentive, light ON (up to {wait:.0f} s for speech)")
+        self.face.set_mode("listening")
         self.pressed.clear()
         self.vad.reset()
         ep = Endpointer(end_silence=self.end_silence, wait_for_speech=wait)
@@ -254,6 +262,7 @@ class Conversation:
         if not frames:
             return ""
         status("thinking: face looks up, light off")
+        self.face.set_mode("thinking")
         t0 = time.perf_counter()
         text = self.stt.transcribe(np.concatenate(frames))
         print(f"  you: {text}   (heard in {time.perf_counter() - t0:.2f} s)", flush=True)
@@ -362,6 +371,7 @@ class Conversation:
             status("speaking: mouth moving, light off")
         pcm, rate = self._synthesize(sentence)
         self.speaker.play(pcm, rate)
+        self.face.set_mode("speaking")
         spoken.append(sentence)
 
     def _synthesize(self, sentence: str) -> tuple[np.ndarray, int]:

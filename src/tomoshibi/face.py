@@ -35,7 +35,7 @@ TRANSITIONS = {
     "settle": (0.7, "idle"),
 }
 # Where extras sit on the face; they're centered on these points.
-ANCHOR = {"dots": (190, 42), "z": (184, 58), "magnifier": (194, 46)}
+ANCHOR = {"dots": (198, 30), "z": (184, 58), "magnifier": (194, 46)}
 
 
 def ease(t: float) -> float:
@@ -94,11 +94,23 @@ def boot_frame() -> Image.Image:
     return frame
 
 
+def thinking_dots(count: int) -> Image.Image:
+    """Plain dots in lamplight, for a face pack that doesn't draw its own."""
+    scale = 4  # drawn large and shrunk, so the edges are smooth
+    dots = Image.new("RGBA", (48 * scale, 14 * scale), (0xF2, 0xB4, 0x5A, 0))
+    draw = ImageDraw.Draw(dots)
+    for i in range(count):
+        draw.ellipse(((1 + i * 17) * scale, scale, (13 + i * 17) * scale, 13 * scale), fill="#f2b45a")
+    return dots.resize((48, 14), Image.Resampling.LANCZOS)
+
+
 def load_parts(folder: Path | None = None) -> dict[str, Image.Image]:
     folder = folder or paths.assets_dir() / "faces" / "tomoshibi"
     parts = {f.stem: Image.open(f).convert("RGBA") for f in sorted(folder.glob("*.png"))}
     if "eyes_open" not in parts:
         raise FileNotFoundError(f"no face parts found in {folder}")
+    for count in (1, 2, 3):
+        parts.setdefault(f"thinking_dots_{count}", thinking_dots(count))
     return parts
 
 
@@ -109,6 +121,7 @@ class Face:
         self.parts, self.rng = parts, rng or random.Random()
         self.mode, self.expression = "idle", "none"
         self.transition: tuple[str, float] | None = None
+        self.after = "idle"  # the mode to land in when the transition ends
         self.voice_level, self.pretend_voice = 0.0, False
         self.blink_at, self.blink_start = self.rng.uniform(3, 7), None
         self.pupil, self.pupil_target, self.drift_at = [0.0, 0.0], (0.0, 0.0), 0.0
@@ -119,7 +132,44 @@ class Face:
         self.fonts = [font(24, 600), font(18, 500)]
 
     def play(self, name: str, now: float) -> None:
+        self.after = TRANSITIONS[name][1]
         self.transition = (name, now)
+
+    def set_mode(self, mode: str) -> None:
+        """Change mode, letting any transition finish first."""
+        if self.transition:
+            self.after = mode
+        else:
+            self.mode = mode
+
+    @property
+    def heading_to(self) -> str:
+        return self.after if self.transition else self.mode
+
+    def notice(self, now: float) -> None:
+        """The button was pressed."""
+        if self.heading_to == "sleeping":
+            self.play("wake", now)
+            self.after = "listening"
+        else:
+            self.play("notice", now)
+
+    def ahem(self, now: float) -> None:
+        """A reminder is about to start."""
+        if self.heading_to == "sleeping":
+            self.play("wake", now)
+            self.after = "speaking"
+        else:
+            self.play("ahem", now)
+
+    def rest(self, asleep: bool, now: float) -> None:
+        """Nothing's happening: go to sleep in quiet hours, otherwise relax."""
+        if self.heading_to == ("sleeping" if asleep else "idle"):
+            return
+        if asleep:
+            self.play("sleep", now)
+        else:
+            self.play("wake" if self.heading_to == "sleeping" else "settle", now)
 
     def _pretend_level(self, now: float) -> tuple[float, bool]:
         """Syllables of random loudness with short gaps, for demos with no voice playing."""
@@ -141,7 +191,7 @@ class Face:
 
     def pose(self, now: float) -> Pose:
         if self.transition and now - self.transition[1] >= TRANSITIONS[self.transition[0]][0]:
-            self.mode, self.transition = TRANSITIONS[self.transition[0]][1], None
+            self.mode, self.transition = self.after, None
         self._drift(now)
         mode, expression, p = self.mode, self.expression, Pose()
 
@@ -152,7 +202,8 @@ class Face:
             p.dy = math.sin(now * math.tau / 3)
         elif mode == "thinking":
             p.mouth, p.pupil = "mouth_closed", (7, -6)
-            p.extras.append((f"thinking_dots_{1 + int(now * 2.5) % 3}", *ANCHOR["dots"], 1))
+            p.tilt = round(math.sin(now * math.tau / 3) * 3 * 2) / 2  # a slow, pondering sway
+            p.extras.append((f"thinking_dots_{1 + int(now * 2) % 3}", *ANCHOR["dots"], 1))
         elif mode == "speaking":
             level, oo = self._pretend_level(now) if self.pretend_voice else (self.voice_level, False)
             self.smoothed_level += (level - self.smoothed_level) * 0.6
@@ -311,17 +362,20 @@ class FaceScreen:
     def __init__(self, face: Face, screen):
         self.face, self.screen = face, screen
         self.frames, self.sent, self.busy = 0, 0, 0.0
+        self.origin = time.monotonic()
         self.stopping = threading.Event()
         self.thread = threading.Thread(target=self._run, daemon=True)
 
     def start(self) -> None:
         self.thread.start()
 
+    def now(self) -> float:
+        return time.monotonic() - self.origin
+
     def _run(self) -> None:
-        origin = time.monotonic()
         while not self.stopping.is_set():
             started = time.monotonic()
-            rgb = np.asarray(self.face.frame(started - origin))
+            rgb = np.asarray(self.face.frame(self.now()))
             self.sent += bool(self.screen.show(rgb))
             if self.frames == 0:
                 self.screen.backlight(True)  # only once there's a picture to light
@@ -332,6 +386,72 @@ class FaceScreen:
     def stop(self) -> None:
         self.stopping.set()
         self.thread.join()
+
+
+class NoFace:
+    """Stands in when there's no screen, so Tomo carries on by voice alone."""
+
+    def __getattr__(self, name):
+        return lambda *args: None
+
+
+class FaceDisplay:
+    """The screen for the whole life of the program: the startup screen as soon as possible,
+    then the face once Tomo is ready to listen."""
+
+    def __init__(self, conf: dict):
+        from tomoshibi import config, display
+
+        self.bus = display.SpiBus(spi_hz=int(config.get(conf, "display.spi_hz", 33_400_000)),
+                                  dc_pin=int(config.get(conf, "display.dc_pin", 25)),
+                                  reset_pin=int(config.get(conf, "display.reset_pin", 27)),
+                                  backlight_pin=int(config.get(conf, "display.backlight_pin", 18)))
+        self.screen = display.ST7789(self.bus)
+        self.screen.show(np.asarray(boot_frame()))
+        self.screen.backlight(True)
+        self.runner, self.face = None, None
+
+    def ready(self) -> None:
+        self.face = Face(load_parts())
+        self.face.mode = "sleeping"
+        self.runner = FaceScreen(self.face, self.screen)
+        self.face.play("wake", self.runner.now())
+        self.runner.start()
+
+    def set_mode(self, mode: str) -> None:
+        self.face.set_mode(mode)
+
+    def notice(self) -> None:
+        self.face.notice(self.runner.now())
+
+    def ahem(self) -> None:
+        self.face.ahem(self.runner.now())
+
+    def rest(self, asleep: bool) -> None:
+        self.face.rest(asleep, self.runner.now())
+
+    def voice(self, level: float) -> None:
+        if self.face:
+            self.face.voice_level = level
+
+    def close(self) -> None:
+        if self.runner:
+            self.runner.stop()
+        self.screen.off()
+        self.bus.close()
+
+
+def open_display(conf: dict):
+    """The screen, or NoFace if it's switched off or can't be opened."""
+    from tomoshibi import config
+
+    if not config.get(conf, "display.enabled", True):
+        return NoFace()
+    try:
+        return FaceDisplay(conf)
+    except (ImportError, OSError) as e:
+        print(f"  [no screen: {e}]", flush=True)
+        return NoFace()
 
 
 DEMO = [

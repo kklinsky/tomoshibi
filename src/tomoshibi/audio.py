@@ -7,6 +7,8 @@ so the Jabra (16 or 48 kHz) can play Kokoro's 24 kHz and Piper's 22.05 kHz audio
 import queue
 import subprocess
 import threading
+import time
+from collections.abc import Callable
 from typing import Self
 
 import numpy as np
@@ -14,6 +16,7 @@ import numpy as np
 MIC_RATE = 16_000
 FRAME = 512  # samples per frame at 16 kHz (32 ms), what Silero VAD expects
 DEFAULT_DEVICE = "plughw:CARD=USB"
+LEVEL_WINDOW = 0.03  # seconds of voice per mouth-shape decision
 
 
 class Microphone:
@@ -45,11 +48,25 @@ class Microphone:
         return np.frombuffer(data, dtype=np.int16).astype(np.float32) / 32768.0
 
 
-class Speaker:
-    """Plays clips one after another in the background; stop() cuts off at once."""
+def voice_levels(audio: np.ndarray, rate: int) -> np.ndarray:
+    """How loud a clip is at each LEVEL_WINDOW, from 0 to 1, for moving the mouth."""
+    size = int(rate * LEVEL_WINDOW)
+    count = len(audio) // size
+    if count == 0:
+        return np.zeros(0)
+    windows = audio[:count * size].reshape(count, size).astype(np.float32)
+    loudness = np.sqrt(np.mean(windows ** 2, axis=1))
+    peak = float(loudness.max())
+    return np.clip(loudness / (peak * 0.8), 0, 1) if peak else loudness
 
-    def __init__(self, device: str = DEFAULT_DEVICE):
+
+class Speaker:
+    """Plays clips one after another in the background; stop() cuts off at once. While a voice
+    clip plays, on_level hears how loud it is right now."""
+
+    def __init__(self, device: str = DEFAULT_DEVICE, on_level: Callable[[float], None] | None = None):
         self.device = device
+        self.on_level = on_level
         self._queue: queue.Queue = queue.Queue()
         self._current: subprocess.Popen | None = None
         self._lock = threading.Lock()
@@ -58,10 +75,10 @@ class Speaker:
         self._stopped = False
         threading.Thread(target=self._run, daemon=True).start()
 
-    def play(self, audio: np.ndarray, rate: int) -> None:
-        """Queue int16 mono audio."""
+    def play(self, audio: np.ndarray, rate: int, voice: bool = True) -> None:
+        """Queue int16 mono audio. voice=False is for chimes and tunes, which don't move the mouth."""
         self._idle.clear()
-        self._queue.put((audio, rate))
+        self._queue.put((audio, rate, voice))
 
     def finish(self) -> None:
         """Mark the end of the current reply, so wait() knows when everything has played."""
@@ -95,7 +112,7 @@ class Speaker:
                 if self._queue.empty():
                     self._idle.set()
                 continue
-            audio, rate = item
+            audio, rate, voice = item
             with self._lock:
                 if self._stopped:
                     continue
@@ -104,14 +121,31 @@ class Speaker:
                      "-c", "1", "-t", "raw"],
                     stdin=subprocess.PIPE,
                 )
-            try:
-                self._current.stdin.write(audio.astype(np.int16).tobytes())
-                self._current.stdin.close()
-            except (BrokenPipeError, ValueError):
-                pass
-            self._current.wait()
+                player = self._current
+            feeder = threading.Thread(target=self._feed, args=(player, audio), daemon=True)
+            feeder.start()
+            if voice and self.on_level:
+                self._follow(player, voice_levels(audio, rate))
+            player.wait()
+            feeder.join()
             with self._lock:
                 self._current = None
+
+    @staticmethod
+    def _feed(player: subprocess.Popen, audio: np.ndarray) -> None:
+        try:
+            player.stdin.write(audio.astype(np.int16).tobytes())
+            player.stdin.close()
+        except (BrokenPipeError, ValueError):
+            pass
+
+    def _follow(self, player: subprocess.Popen, levels: np.ndarray) -> None:
+        started = time.monotonic()
+        while player.poll() is None:
+            index = int((time.monotonic() - started) / LEVEL_WINDOW)
+            self.on_level(float(levels[index]) if index < len(levels) else 0.0)
+            time.sleep(LEVEL_WINDOW)
+        self.on_level(0.0)
 
 
 def chime(rate: int = 24_000, pitch: float = 880.0, seconds: float = 0.18) -> np.ndarray:

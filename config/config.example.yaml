@@ -7,6 +7,7 @@ audio:
   volume_floor_percent: 25            # "quieter" never goes below this, so Tomo can't go silent
 
 display:
+  enabled: true
   spi_hz: 33400000              # clean up to 50 MHz on the bench; see hardware/wiring.md
   dc_pin: 25
   reset_pin: 27

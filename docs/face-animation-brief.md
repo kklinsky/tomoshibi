@@ -80,7 +80,7 @@ parts. Where a state needs special artwork, it's listed under "Parts needed".
 |---|---|---|---|
 | **Idle** | Most of the day, waiting | Relaxed and content. Software adds gentle "breathing" (a slow bob), a blink every few seconds, and eyes drifting to look around now and then | Normal eyes, pupils, closed/smile mouth |
 | **Listening** | After the button is pressed, while the person talks | **The most important one.** Wide, attentive eyes looking straight out, slightly leaning in: "I'm listening to you." Must look clearly different from idle, even from across a room | Wide eyes, raised brows (if you use brows) |
-| **Thinking** | While working out the answer (1–2 seconds) | Eyes glance up and to the side, as if pondering. Small "…" thinking dots | Thinking dots (3 dots, or a dot animation) |
+| **Thinking** | While working out the answer (a few seconds) | Eyes glance up and to the side, as if pondering, with a slow sway. Small "…" thinking dots in the top-right corner, above the head | Thinking dots (3 dots, or a dot animation). Until these are drawn, the software shows plain dots |
 | **Speaking** | While talking | Soft, friendly eyes. Mouth moves with the voice (see mouth shapes) | 5 mouth shapes |
 | **Sleeping** | Late at night (midnight to 7 AM) | Peaceful. Eyes closed, very slow breathing. The screen is dimmed | Closed eyes, a small "z" (optional) |
 

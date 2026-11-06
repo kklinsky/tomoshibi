@@ -166,17 +166,27 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "chat":
         from tomoshibi import config as cfg
+        from tomoshibi import face
+
+        conf = cfg.load(args.config)
+        # The screen comes first: loading everything else takes a while.
+        screen = face.NoFace() if args.type else face.open_display(conf)
+
         from tomoshibi.conversation import Conversation
         from tomoshibi.llm import ProviderError
 
-        conf = cfg.load(args.config)
         try:
-            Conversation(conf, lock_path, typed=args.type, stt_name=args.stt, tts_name=args.tts).run()
+            talk = Conversation(conf, lock_path, typed=args.type, stt_name=args.stt,
+                                tts_name=args.tts, face=screen)
+            screen.ready()
+            talk.run()
         except ProviderError as e:
             print(f"Can't start: {e}")
             return 2
         except KeyboardInterrupt:
             pass
+        finally:
+            screen.close()
         return 0
 
     if args.command == "events":

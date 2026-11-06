@@ -331,7 +331,7 @@ const PARTS = [
 const PART_BY_NAME = Object.fromEntries(PARTS.map(p => [p.name, p]));
 
 // Where extras sit on the face (they're drawn centered at these points).
-const ANCHOR = { dots: [190, 42], z: [184, 58], magnifier: [194, 46] };
+const ANCHOR = { dots: [198, 30], z: [184, 58], magnifier: [194, 46] };
 
 // ---------------------------------------------------------------------------
 // Built-in sample face (procedural), so the tool shows something before any art exists.
@@ -379,7 +379,7 @@ function makeSample() {
   parts.brows_raised = brow(-7, 0);
   parts.brows_soft = brow(-2, 5);   // inner ends up: worried, not cross
   const small = (w, h, draw) => { const c = canvas(w, h); const g = c.getContext("2d"); g.lineCap = "round"; draw(g); return c; };
-  for (let n = 1; n <= 3; n++) parts["thinking_dots_" + n] = small(48, 16, g => { g.fillStyle = cream; for (let i = 0; i < n; i++) ellipse(g, [8 + i * 16, 8], 5, 5); });
+  for (let n = 1; n <= 3; n++) parts["thinking_dots_" + n] = small(48, 14, g => { g.fillStyle = "#f2b45a"; for (let i = 0; i < n; i++) ellipse(g, [7 + i * 17, 7], 6, 6); });
   parts.sleep_z = small(28, 28, g => { g.fillStyle = cream; g.font = "700 24px " + getComputedStyle(document.body).fontFamily; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("z", 14, 15); });
   parts.magnifier = small(40, 40, g => { g.strokeStyle = cream; g.lineWidth = 4; g.beginPath(); g.arc(16, 16, 10, 0, Math.PI * 2); g.stroke(); g.lineWidth = 6; g.beginPath(); g.moveTo(24, 24); g.lineTo(35, 35); g.stroke(); });
   return parts;
@@ -586,7 +586,8 @@ function pose(now, mode, expr, trans, still = false) {
     P.dy = still ? 0 : Math.sin(t * Math.PI * 2 / 3) * 1;
   } else if (mode === "thinking") {
     P.mouth = "mouth_closed"; P.pupil = [7, -6];
-    const n = still ? 3 : 1 + Math.floor(t * 2.5) % 3;
+    P.tilt = still ? 0 : Math.sin(t * Math.PI * 2 / 3) * 3;
+    const n = still ? 3 : 1 + Math.floor(t * 2) % 3;
     P.extras.push({ name: "thinking_dots_" + n, at: ANCHOR.dots });
   } else if (mode === "speaking") {
     const v = still ? { level: 0.6, oo: false } : voiceLevel(now);

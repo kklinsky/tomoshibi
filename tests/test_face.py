@@ -7,6 +7,7 @@ import pytest
 from PIL import Image
 
 from tomoshibi import face
+from tomoshibi.audio import voice_levels
 from tomoshibi.display import HEIGHT, ST7789, WIDTH, changed_box, to_rgb565
 from tomoshibi.face import Face, load_parts, mouth_for, strip_lines
 
@@ -35,7 +36,8 @@ class FakeBus:
 
 def test_parts_fit_the_square_face_area():
     parts = load_parts(ASSETS / "faces" / "tomoshibi")
-    assert all(p.size == (240, 240) for n, p in parts.items() if n != "mini_face")
+    assert all(p.size == (240, 240) for n, p in parts.items()
+               if n != "mini_face" and not n.startswith("thinking_dots"))
 
 
 def test_strip_lines():
@@ -84,6 +86,24 @@ def test_it_blinks(the_face):
     assert "eyes_closed" in eyes
 
 
+def test_thinking_shows_growing_dots_and_sways(the_face):
+    the_face.mode = "thinking"
+    corner = (174, 23, 222, 37)
+    lit = []
+    for now in (0.0, 0.5, 1.0):
+        crop = np.asarray(the_face.frame(now).crop(corner))
+        lit.append((crop == (0xF2, 0xB4, 0x5A)).all(axis=2).sum())
+    assert 0 < lit[0] < lit[1] < lit[2]
+    assert {the_face.pose(t / 4).tilt for t in range(12)} != {0}
+
+
+def test_a_face_pack_can_draw_its_own_dots(tmp_path):
+    Image.new("RGBA", (240, 240)).save(tmp_path / "eyes_open.png")
+    Image.new("RGBA", (30, 10), (255, 0, 0, 255)).save(tmp_path / "thinking_dots_1.png")
+    parts = load_parts(tmp_path)
+    assert parts["thinking_dots_1"].size == (30, 10) and parts["thinking_dots_2"].size == (48, 14)
+
+
 def test_missing_parts_are_left_out(the_face):
     the_face.parts.pop("thinking_dots_1", None)
     the_face.parts.pop("brows_neutral")
@@ -115,6 +135,63 @@ def test_backlight_stays_off_until_the_first_frame(the_face):
     assert bus.lit
     screen.off()
     assert not bus.lit
+
+
+def test_a_mode_set_during_a_transition_waits_for_it(the_face):
+    the_face.notice(0.0)
+    the_face.set_mode("thinking")
+    assert the_face.mode == "idle" and the_face.heading_to == "thinking"
+    the_face.pose(1.0)
+    assert the_face.mode == "thinking"
+
+
+def test_a_press_or_reminder_wakes_a_sleeping_face(the_face):
+    the_face.mode = "sleeping"
+    the_face.notice(0.0)
+    assert the_face.transition[0] == "wake" and the_face.heading_to == "listening"
+    the_face.mode, the_face.transition = "sleeping", None
+    the_face.ahem(0.0)
+    assert the_face.transition[0] == "wake" and the_face.heading_to == "speaking"
+
+
+def test_rest_settles_sleeps_and_wakes(the_face):
+    the_face.rest(False, 0.0)
+    assert the_face.transition is None  # already idle
+
+    the_face.mode = "speaking"
+    the_face.rest(False, 0.0)
+    assert the_face.transition[0] == "settle"
+
+    the_face.mode, the_face.transition = "idle", None
+    the_face.rest(True, 0.0)
+    assert the_face.transition[0] == "sleep"
+    the_face.rest(True, 0.1)
+    assert the_face.transition == ("sleep", 0.0)  # not restarted
+
+    the_face.mode, the_face.transition = "sleeping", None
+    the_face.rest(False, 0.0)
+    assert the_face.transition[0] == "wake" and the_face.heading_to == "idle"
+
+
+def test_no_face_ignores_everything():
+    nothing = face.NoFace()
+    nothing.notice()
+    nothing.rest(True)
+    nothing.close()
+
+
+def test_switching_the_display_off_in_config():
+    assert isinstance(face.open_display({"display": {"enabled": False}}), face.NoFace)
+
+
+def test_voice_levels_follow_loudness():
+    rate = 24_000
+    quiet = np.full(rate // 10, 500, np.int16)
+    loud = np.full(rate // 10, 20_000, np.int16)
+    levels = voice_levels(np.concatenate((np.zeros(rate // 10, np.int16), quiet, loud)), rate)
+    assert levels[0] == 0 and 0 < levels[5] < 0.1 and levels[-1] == 1
+    assert voice_levels(np.zeros(100, np.int16), rate).size == 0
+    assert (voice_levels(np.zeros(rate, np.int16), rate) == 0).all()
 
 
 def test_rgb565():
