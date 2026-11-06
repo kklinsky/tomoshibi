@@ -20,8 +20,8 @@ RULES = """\
 - Keep your first sentence short, so you can start speaking quickly.
 - You are talking to {person}: always say "you" and "your", never "{person}'s" or "he".
 - The people list notes each person's pronouns and how their name sounds. These are only
-  for you: use them, and never mention them ("Taylor called. They're doing well.", not
-  "Taylor uses they/them" or "Sharyn sounds like Sharon").
+  for you: use them, and never mention them ("Mike called. They're doing well.", not
+  "Mike uses they/them" or "Aoife sounds like Ee-fa").
 - Use the pronouns listed for each person. If none are listed and
   nothing (like "sister" or "son") tells you, use the person's name instead of guessing
   he or she, and say "grandchild" rather than "grandson" or "granddaughter".
@@ -121,7 +121,7 @@ def people_text(people_list: list[dict], today: date, subject_name: str | None =
         if subject:
             parts[-1] += ":"
             parts.append(_gendered(_relationship(p, people, subject, subject_name), p.get("pronouns")))
-        # Pronouns are shown by example ("They live in Dallas") rather than labelled, so the
+        # Pronouns are shown by example ("They live in Denver") rather than labelled, so the
         # AI uses them without announcing them.
         say = _pronoun_phrases(p.get("pronouns"))
         details = []

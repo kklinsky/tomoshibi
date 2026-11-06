@@ -2,9 +2,9 @@
 
 The text the AI writes (and the screen shows) keeps the real spelling; only the words sent
 to the voice change. Sources:
-- `pronounce:` on a person in people.yaml: how their first name sounds, e.g. Ami -> "Amy"
+- `pronounce:` on a person in people.yaml: how their first name sounds, e.g. Niamh -> "Neev"
 - data/pronunciations.yaml for anything else, including nicknames:
-  {"Tommi": "Tommy", "Naples": "Nay-pulls"}
+  {"Gigi": "Jee-jee", "Naples": "Nay-pulls"}
 """
 
 import json
@@ -42,7 +42,7 @@ def load(data_dir: Path) -> dict[str, str]:
 
 # Words spelled the same but said differently depending on use (homographs), which the
 # voice guesses wrong in Tomo's everyday sentences. Applied for every family, before their
-# own pronunciations. "Taylor lives in Dallas" was said "lyvz", like "nine lives".
+# own pronunciations. "Mike lives in Denver" was said "lyvz", like "nine lives".
 _PLACE = (r"in|on|at|near|nearby|with|by|alone|there|here|next|close|just|about|outside|"
           r"across|around|over|up|down|far|together|abroad|downtown|upstairs|downstairs|"
           r"somewhere|anywhere|right|still|now|only|mostly")
@@ -50,13 +50,13 @@ _AUX = r"does|do|did|to|can|will|would|could|should|might|must|don't|doesn't|did
 HOMOGRAPHS = [
     # "lives in / near / with ..." is the verb: livz
     (re.compile(rf"\b(L|l)ives(?=\s+(?:{_PLACE})\b)"), r"\1ivs"),
-    # "where does Ami live?", "wants to live" is the verb: liv
+    # "where does Niamh live?", "wants to live" is the verb: liv
     (re.compile(rf"\b((?:{_AUX})\s+(?:[\w']+\s+){{0,1}})(L|l)ive\b", re.IGNORECASE), r"\1\2iv"),
 ]
 
 
-# US radio and TV call letters (WHEC, WVIT, KMOX) are spelled out, not read as words
-# ("WHEC" came out as "wek"). Optional -TV/-FM/-AM suffixes are spelled too.
+# US radio and TV call letters (WKRP, WXYZ, KMOX) are spelled out, not read as words
+# ("WKRP" came out as one word). Optional -TV/-FM/-AM suffixes are spelled too.
 CALL_LETTERS = re.compile(r"\b([KW][A-Z]{2,3})(?:-(TV|FM|AM))?\b")
 
 

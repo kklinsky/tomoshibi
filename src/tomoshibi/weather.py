@@ -136,7 +136,7 @@ class Weather:
             ),
             input_schema={
                 "type": "object",
-                "properties": {"location": {"type": "string", "description": "e.g. 'Atlanta, GA'"}},
+                "properties": {"location": {"type": "string", "description": "e.g. 'Boston, MA'"}},
                 "required": [],
                 "additionalProperties": False,
             },

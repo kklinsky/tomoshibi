@@ -78,23 +78,23 @@ def test_profile_includes_the_persons_own_birthday():
 
 def test_siblings_and_half_siblings():
     people = [
-        {"id": "bob", "is_subject": True, "parents": ["nate", "ruth"]},
-        {"id": "nate", "name": "Nathan", "called": ["your father"]},
+        {"id": "bob", "is_subject": True, "parents": ["walt", "ruth"]},
+        {"id": "walt", "name": "Walter", "called": ["your father"]},
         {"id": "ruth", "name": "Ruth"},
-        {"id": "sue", "name": "Sue", "parents": ["nate", "ruth"]},
-        {"id": "rob", "name": "Roben", "parents": ["nate", "robs_mother"]},
-        {"id": "tay", "name": "Taylor", "pronouns": "they/them", "parents": ["sue"], "lives": "Dallas"},
+        {"id": "sue", "name": "Sue", "parents": ["walt", "ruth"]},
+        {"id": "rita", "name": "Rita", "parents": ["walt", "ritas_mother"]},
+        {"id": "mike", "name": "Mike", "pronouns": "they/them", "parents": ["sue"], "lives": "Denver"},
     ]
     text = prompt.people_text(people, date(2026, 10, 22), "Bob")
-    assert "Nathan (called your father): Bob's parent" in text
+    assert "Walter (called your father): Bob's parent" in text
     assert "Sue: Bob's sibling" in text
-    assert "Roben: Bob's half-sibling, through Nathan" in text
-    assert "They live in Dallas." in text and "pronouns" not in text
+    assert "Rita: Bob's half-sibling, through Walter" in text
+    assert "They live in Denver." in text and "pronouns" not in text
 
 
 def test_relationship_words_follow_pronouns():
-    assert prompt._gendered("Bob's grandchild (child of Ami)", "he/him") == "Bob's grandson (child of Ami)"
-    assert prompt._gendered("Bob's half-sibling, through Nathan", "she/her") == "Bob's half-sister, through Nathan"
+    assert prompt._gendered("Bob's grandchild (child of Niamh)", "he/him") == "Bob's grandson (child of Niamh)"
+    assert prompt._gendered("Bob's half-sibling, through Walter", "she/her") == "Bob's half-sister, through Walter"
     assert prompt._gendered("Bob's child-in-law (married to Karen)", "he/him") == "Bob's son-in-law (married to Karen)"
     assert prompt._gendered("Bob's grandchild", "they/them") == "Bob's grandchild"
     assert prompt._gendered("Bob's grandchild", None) == "Bob's grandchild"
@@ -104,15 +104,15 @@ def test_wiki_is_included_without_source_tags(tmp_path):
     wiki = tmp_path / "wiki"
     wiki.mkdir()
     (wiki / "career.md").write_text(
-        "---\ntopic: Career\nsensitivity: normal\n---\n## Facts\n- Ran WHEC from 1983. [hof]\n\n"
-        "## How to talk about it\nDon't bring up retirement.\n\n## Sources\n- hof: Hall of Fame\n",
+        "---\ntopic: Career\nsensitivity: normal\n---\n## Facts\n- Ran WKRP from 1978. [history]\n\n"
+        "## How to talk about it\nDon't bring up the merger.\n\n## Sources\n- history: Company history\n",
         encoding="utf-8")
     (wiki / "loss.md").write_text("---\ntopic: A hard year\nsensitivity: avoid_unless_raised\n---\n- Lost his job.\n",
                                   encoding="utf-8")
     text = prompt.wiki_text(tmp_path, "Bob")
     assert "## Career\nYou may bring this up" in text
-    assert "- Ran WHEC from 1983." in text and "[hof]" not in text and "Hall of Fame" not in text
-    assert "Don't bring up retirement." in text
+    assert "- Ran WKRP from 1978." in text and "[history]" not in text and "Company history" not in text
+    assert "Don't bring up the merger." in text
     assert "Don't bring this up yourself. Talk about it only if Bob does." in text
     assert prompt.wiki_text(tmp_path / "nothing", "Bob") == ""
 
@@ -126,10 +126,10 @@ def test_example_family_wiki_reaches_the_prompt():
 
 def test_death_dates_read_naturally():
     people = [{"id": "bob", "is_subject": True, "parents": ["n", "r"]},
-              {"id": "s", "name": "Shelly", "pronouns": "she/her", "parents": ["n", "r"], "died": 2021},
+              {"id": "s", "name": "Helen", "pronouns": "she/her", "parents": ["n", "r"], "died": 2019},
               {"id": "u", "name": "Ruth", "died": date(2023, 4, 10)}]
     text = prompt.people_text(people, date(2026, 10, 22), "Bob")
-    assert "Shelly: Bob's sister. She died in 2021." in text
+    assert "Helen: Bob's sister. She died in 2019." in text
     assert "Died on April 10, 2023." in text
 
 

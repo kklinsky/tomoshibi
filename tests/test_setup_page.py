@@ -34,8 +34,8 @@ class FakeApp:
 
 @pytest.fixture
 def server(tmp_path):
-    (tmp_path / "people.yaml").write_text('people:\n  - id: ami\n    name: "Ami Stevens"\n', encoding="utf-8")
-    (tmp_path / "profile.yaml").write_text("call_him: Arnold\n", encoding="utf-8")
+    (tmp_path / "people.yaml").write_text('people:\n  - id: niamh\n    name: "Niamh Smith"\n', encoding="utf-8")
+    (tmp_path / "profile.yaml").write_text("call_him: Bob\n", encoding="utf-8")
     app = FakeApp(tmp_path)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(app))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -72,17 +72,17 @@ def test_try_save_and_list(server):
     app, base = server
     cookie = "tomo_setup=sess"
     assert request(base + "/", cookie=cookie)[0] == 200
-    status, headers, body = request(base + "/api/say", {"text": "Ami called, Arnold.", "word": "Ami", "say": "Amy"}, cookie)
+    status, headers, body = request(base + "/api/say", {"text": "Niamh called, Bob.", "word": "Niamh", "say": "Neev"}, cookie)
     assert status == 200 and headers["Content-Type"] == "audio/wav" and body[:4] == b"RIFF"
-    assert app.spoken[-1] == "Amy called, Arnold."
-    assert request(base + "/api/pronunciations", {"word": "Ami", "say": "Amy"}, cookie)[0] == 200
+    assert app.spoken[-1] == "Neev called, Bob."
+    assert request(base + "/api/pronunciations", {"word": "Niamh", "say": "Neev"}, cookie)[0] == 200
     _, _, body = request(base + "/api/pronunciations", cookie=cookie)
     data = json.loads(body)
-    assert data["person"] == "Arnold" and data["entries"][0]["say"] == "Amy"
-    request(base + "/api/say", {"text": "Ami called."}, cookie)
-    assert app.spoken[-1] == "Amy called."  # saved pronunciation is used from now on
+    assert data["person"] == "Bob" and data["entries"][0]["say"] == "Neev"
+    request(base + "/api/say", {"text": "Niamh called."}, cookie)
+    assert app.spoken[-1] == "Neev called."  # saved pronunciation is used from now on
     assert "pronunciation saved" in (app.data_dir / "changes.log").read_text()
-    assert request(base + "/api/pronunciations/delete", {"word": "Ami"}, cookie)[0] == 200
+    assert request(base + "/api/pronunciations/delete", {"word": "Niamh"}, cookie)[0] == 200
 
 
 def test_quiet_hours():

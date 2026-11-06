@@ -37,11 +37,11 @@ def test_describe_reads_open_meteo():
 def test_validate_tool_input():
     schema = {"type": "object", "properties": {"location": {"type": "string"}}, "required": []}
     assert validate(schema, {}) == {}
-    assert validate(schema, {"location": "Atlanta, GA"})["location"] == "Atlanta, GA"
+    assert validate(schema, {"location": "Boston, MA"})["location"] == "Boston, MA"
     with pytest.raises(ToolInputError):
         validate(schema, {"location": 5})
     with pytest.raises(ToolInputError):
-        validate(schema, {"city": "Atlanta"})
+        validate(schema, {"city": "Boston"})
 
 
 def test_lookups_follow_config_toggles():

@@ -57,10 +57,10 @@ li.entry button { min-height: 44px; padding: 8px 12px; }
     <h2 id="try-h">Try a pronunciation</h2>
     <p class="hint">Hear a name in Tomo's own voice, try different spellings until it sounds right, then save it. The spelling Tomo shows stays the same; only how it's said changes.</p>
     <label>Word, spelled as usual
-      <input type="text" id="word" autocomplete="off" placeholder="Meryl">
+      <input type="text" id="word" autocomplete="off" placeholder="Niamh">
     </label>
     <label>Say it like <span class="hint">(spell it the way it sounds; leave empty to hear it as it is now)</span>
-      <input type="text" id="say" autocomplete="off" placeholder="Meril">
+      <input type="text" id="say" autocomplete="off" placeholder="Emmah">
     </label>
     <label>In this sentence
       <input type="text" id="sentence" autocomplete="off">
@@ -97,7 +97,7 @@ li.entry button { min-height: 44px; padding: 8px 12px; }
   let where = "browser", person = "", sentenceEdited = false, tries = [];
 
   function setStatus(text, kind = "") { statusEl.textContent = text; statusEl.className = "status " + kind; }
-  function defaultSentence(w) { return `${w || "Meryl"} called today${person ? ", " + person : ""}.`; }
+  function defaultSentence(w) { return `${w || "Niamh"} called today${person ? ", " + person : ""}.`; }
   function syncSentence() { if (!sentenceEdited) sentence.value = defaultSentence(word.value.trim()); }
 
   word.addEventListener("input", syncSentence);

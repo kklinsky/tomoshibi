@@ -388,7 +388,7 @@ def tools(events: "Events", people: list[dict], person: str):
                 f"briefly. It lets you tell {person} how long is left whenever they ask. If it isn't "
                 "clear who is going out, ask who you're talking to first."),
             input_schema={"type": "object", "properties": {
-                "what": {"type": "string", "description": "e.g. 'Hisako back from the store'"},
+                "what": {"type": "string", "description": "e.g. 'Carol back from the store'"},
                 "minutes_from_now": {"type": "string", "description": "e.g. '30'"},
                 "at_time": {"type": "string", "description": "e.g. '15:45', if a clock time was given"},
             }, "required": ["what"], "additionalProperties": False},
@@ -398,7 +398,7 @@ def tools(events: "Events", people: list[dict], person: str):
             name="clear_expected_time",
             description="Remove an expected time once it has happened, e.g. someone says they're back.",
             input_schema={"type": "object", "properties": {
-                "what": {"type": "string", "description": "a word from it, e.g. 'Hisako'"},
+                "what": {"type": "string", "description": "a word from it, e.g. 'Carol'"},
             }, "required": ["what"], "additionalProperties": False},
             run=clear_expected,
         ),
@@ -406,11 +406,11 @@ def tools(events: "Events", people: list[dict], person: str):
             name="get_schedule",
             description=("The family calendar: appointments, visits, reminders, birthdays and "
                          "anniversaries. Today and tomorrow are already in your context. For "
-                         "'when is ...?' questions ('When is Kevin coming?', 'When's the dentist?') "
+                         "'when is ...?' questions ('When is David coming?', 'When's the dentist?') "
                          "pass `search` with the key word; it looks a whole year ahead. Otherwise "
                          "give a range of days."),
             input_schema={"type": "object", "properties": {
-                "search": {"type": "string", "description": "a name or word to find, e.g. 'Kevin'"},
+                "search": {"type": "string", "description": "a name or word to find, e.g. 'David'"},
                 "from_date": {"type": "string", "description": "YYYY-MM-DD; default today"},
                 "days": {"type": "string", "description": "how many days; default 1, or a year with search"},
             }, "required": [], "additionalProperties": False},

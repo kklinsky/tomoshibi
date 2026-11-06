@@ -127,19 +127,19 @@ def test_expected_times(tmp_path):
 
     ev = Events(tmp_path)
     left = datetime(2026, 10, 23, 15, 15)
-    ev.expect("Hisako back from the store", left + timedelta(minutes=30), left)
+    ev.expect("Carol back from the store", left + timedelta(minutes=30), left)
     ten_later = left + timedelta(minutes=10)
     (e,) = ev.expected(ten_later)
     assert (e["at"], e["minutes_left"], e["said_at"]) == ("3:45 PM", 20, "3:15 PM")
     text = schedule_text(ev, [], "Bob", ten_later)
-    assert "Expected: Hisako back from the store at 3:45 PM, in about 20 minutes (said at 3:15 PM)." in text
+    assert "Expected: Carol back from the store at 3:45 PM, in about 20 minutes (said at 3:15 PM)." in text
     late = schedule_text(ev, [], "Bob", left + timedelta(minutes=42))
     assert "expected about 12 minutes ago, so a little later than planned" in late
     assert ev.expected(left + timedelta(hours=3)) == []       # dropped after a couple of hours
     # a new estimate replaces the old one; "I'm back" clears it
-    ev.expect("Hisako back from the store", left + timedelta(minutes=50), left)
+    ev.expect("Carol back from the store", left + timedelta(minutes=50), left)
     assert [x["at"] for x in ev.expected(ten_later)] == ["4:05 PM"]
-    assert ev.done("hisako") == 1 and ev.expected(ten_later) == []
+    assert ev.done("carol") == 1 and ev.expected(ten_later) == []
 
 
 def test_expected_time_tool(tmp_path):

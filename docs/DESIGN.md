@@ -420,7 +420,7 @@ people:
 | `relationship_override` | Friends, neighbors, caregivers, his doctor: anyone who doesn't fit the tree, or a relationship the family wants described its own way ("like a brother to him") |
 | `called` | What he actually calls them. Helps speech recognition and matching |
 | `pronouns` | e.g. `they/them`. Tomo always uses these; without them the AI guesses from the name and the `called` entries |
-| `pronounce` | How the first name sounds, when the spelling misleads the voice (e.g. Ami → "Amy"). Applied only to speech; also tells the AI that speech recognition may write it that way. Nicknames and other words go in `data/pronunciations.yaml` |
+| `pronounce` | How the first name sounds, when the spelling misleads the voice (e.g. Niamh → "Neev"). Applied only to speech; also tells the AI that speech recognition may write it that way. Nicknames and other words go in `data/pronunciations.yaml` |
 | `born`, `died` | **Ages are calculated when asked, never stored.** Birthdays and death anniversaries are derived from these |
 | `photo`, `lives`, `notes` | Shown on screen / used in conversation |
 | `guidance` | Family-agreed handling for sensitive cases |
@@ -838,11 +838,11 @@ A small web page on the device for the **critical settings that keep it working*
 Out of scope: people, reminders, memories and other personal content. Those stay with the private data files, Slack, and voice. The setup page is for keeping the device running, not for running Dad's life. Pronunciations are the one exception: they're hard to get right without hearing them, so the page has a small tool for them.
 
 ### Pronunciation tester
-Names with unusual spellings (Ami, Roben, Sharyn, Meryl) are the most common thing the voice gets wrong, and the fix can only be judged by ear. The tester makes that a few seconds' work instead of a round trip through files:
+Names with unusual spellings (Niamh, Aoife, Saoirse, Siobhan) are the most common thing the voice gets wrong, and the fix can only be judged by ear. The tester makes that a few seconds' work instead of a round trip through files:
 
-1. **Type the word as written** ("Meryl") and, optionally, a sentence to hear it in. The default sentence uses it naturally: *"Meryl called today, Arnold."*
+1. **Type the word as written** ("Niamh") and, optionally, a sentence to hear it in. The default sentence uses it naturally: *"Niamh called today, Bob."*
 2. **Play it as it is now.** It uses the device's own voice, speed and existing pronunciations, so what you hear is exactly what Dad hears.
-3. **Type how it should sound** ("Meril", "Mer-ill") and **play again**. Try as many spellings as needed; the last few stay listed for comparison.
+3. **Type how it should sound** ("Neev", "Nee-av") and **play again**. Try as many spellings as needed; the last few stay listed for comparison.
 4. **Choose where to listen:** **in your browser** (the audio is streamed to your phone or laptop) or **on the device's speaker** (useful when you're in the room, to check it through the Jabra at its real volume).
 5. **Save.** If the word is someone's first name in `people.yaml`, it's saved there as `pronounce:`; otherwise in `pronunciations.yaml`. It takes effect on the next sentence Tomo speaks.
 
