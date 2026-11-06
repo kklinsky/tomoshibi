@@ -10,6 +10,7 @@ events:
     title: Morning pills
     time: "08:00"
     repeat: daily
+    starts: 2026-10-01
     say: "It's time for your morning pills. They're in the blue box by the sink."
     protected: true
   - id: dentist
@@ -158,12 +159,12 @@ def test_schedule_is_in_date_order_and_searchable(tmp_path):
     from tomoshibi.events import tools
 
     ev = Events(tmp_path)
-    ev.add("Kevin visits Dad for Thanksgiving", date(2026, 11, 26), None)
-    people = [{"id": "kevin", "name": "Kevin Klinsky", "called": ["Kevin"], "born": date(1971, 11, 1)}]
-    items = ev.schedule(date(2026, 10, 23), 40, people, "Arnold")
+    ev.add("David visits Dad for Thanksgiving", date(2026, 11, 26), None)
+    people = [{"id": "david", "name": "David Smith", "called": ["David"], "born": date(1971, 11, 1)}]
+    items = ev.schedule(date(2026, 10, 23), 40, people, "Bob")
     assert [i["date"] for i in items] == ["Sunday, November 1", "Thursday, November 26"]
-    get = {t.name: t for t in tools(ev, people, "Arnold")}["get_schedule"]
+    get = {t.name: t for t in tools(ev, people, "Bob")}["get_schedule"]
     import json
-    found = json.loads(get.run({"search": "Kevin"}))
+    found = json.loads(get.run({"search": "David", "from_date": "2026-10-23"}))
     assert found["days"] == 365
-    assert [i["title"] for i in found["items"]][-1] == "Kevin visits Dad for Thanksgiving"
+    assert [i["title"] for i in found["items"]][-1] == "David visits Dad for Thanksgiving"

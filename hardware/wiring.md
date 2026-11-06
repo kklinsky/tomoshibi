@@ -97,8 +97,11 @@ Wire ground and power first, then RES, CS, SCK, DC and SDI, and BL last. Recheck
 software drives it. If the backlight stays off, unplug it and check the wiring.
 
 The sample code uses SPI mode 0 and the panel's native 240×320 portrait layout (`0x36` =
-`0x00`) with 16-bit color (`0x3A` = `0x05`). Start at a moderate SPI speed, because long jumper
-wires can garble the data.
+`0x00`) with 16-bit color (`0x3A` = `0x05`).
+
+On the bench, with jumper wires, the picture stayed clean at every speed tested from 10 to
+50 MHz. Use 33 MHz (about 26 full frames per second) to keep some margin, and retest once the
+wires are in their final positions inside the enclosure.
 
 ## Button
 

@@ -16,6 +16,13 @@ def data_dir() -> Path:
     return Path(os.environ.get("TOMOSHIBI_DATA_DIR", STATE_DIR / "data"))
 
 
+def assets_dir() -> Path:
+    """assets/ from the working directory (development) or the installed release."""
+    if env := os.environ.get("TOMOSHIBI_ASSETS"):
+        return Path(env)
+    return Path.cwd() / "assets" if (Path.cwd() / "assets").is_dir() else PREFIX / "current" / "assets"
+
+
 def default_models_lock() -> Path:
     """models.lock from the working directory (development) or the installed release."""
     if env := os.environ.get("TOMOSHIBI_MODELS_LOCK"):

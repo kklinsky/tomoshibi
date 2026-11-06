@@ -7,6 +7,42 @@ from pathlib import Path
 from tomoshibi import __version__, models, paths
 
 
+def run_face(args) -> int:
+    from tomoshibi import config, face
+
+    the_face = face.Face(face.load_parts())
+    if args.sheet:
+        face.preview_sheet(the_face).save(args.sheet)
+        print(f"Saved {args.sheet}")
+        return 0
+
+    from tomoshibi import display
+
+    settings = config.load(args.config)
+    bus = display.SpiBus(spi_hz=int(config.get(settings, "display.spi_hz", 33_400_000)),
+                         dc_pin=int(config.get(settings, "display.dc_pin", 25)),
+                         reset_pin=int(config.get(settings, "display.reset_pin", 27)))
+    screen = display.ST7789(bus)
+    the_face.pretend_voice = True
+    the_face.mode, the_face.expression = args.mode, args.expression
+    runner = face.FaceScreen(the_face, screen)
+    runner.start()
+    end = time.monotonic() + args.seconds
+    try:
+        if args.demo:
+            face.run_demo(the_face, runner, end)
+        else:
+            time.sleep(args.seconds)
+    except KeyboardInterrupt:
+        pass
+    runner.stop()
+    print(f"{runner.frames} frames, {runner.sent} needed sending, "
+          f"{1000 * runner.busy / max(1, runner.frames):.1f} ms each on average")
+    screen.off()
+    bus.close()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tomoshibi", description="Tomoshibi voice companion")
     parser.add_argument("--version", action="version", version=__version__)
@@ -38,6 +74,14 @@ def main(argv: list[str] | None = None) -> int:
     chat.add_argument("--tts", help="TTS model name from models.lock")
     chat.add_argument("--config", type=Path, help="path to config.yaml")
 
+    face = sub.add_parser("face", help="animate the face on the screen")
+    face.add_argument("--mode", default="idle", help="idle, listening, thinking, speaking or sleeping")
+    face.add_argument("--expression", default="none", help="happy, concerned, curious or lookup")
+    face.add_argument("--demo", action="store_true", help="step through every state in a loop")
+    face.add_argument("--seconds", type=float, default=30, help="how long to run")
+    face.add_argument("--sheet", type=Path, help="save a PNG of every state; no screen needed")
+    face.add_argument("--config", type=Path, help="path to config.yaml")
+
     events_cmd = sub.add_parser("events", help="show the calendar and any reminders due now")
     events_cmd.add_argument("--days", type=int, default=7)
 
@@ -65,6 +109,9 @@ def main(argv: list[str] | None = None) -> int:
         from tomoshibi import doctor
 
         return doctor.run(lock_path)
+
+    if args.command == "face":
+        return run_face(args)
 
     specs = models.load_lock(lock_path)
 

@@ -6,6 +6,11 @@ audio:
   device: "plughw:CARD=USB"           # ALSA device for the USB speakerphone
   volume_floor_percent: 25            # "quieter" never goes below this, so Tomo can't go silent
 
+display:
+  spi_hz: 33400000              # clean up to 50 MHz on the bench; see hardware/wiring.md
+  dc_pin: 25
+  reset_pin: 27
+
 speech:
   stt_model: whisper-base-en          # name from models.lock
   tts_model: kokoro-82m-int8
