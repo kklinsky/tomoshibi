@@ -180,9 +180,9 @@ details[open] summary { margin-bottom: 8px; }
           <input type="range" id="calib" min="2" max="8" step="0.01" value="3.78" aria-label="Pixels per millimetre">
           <label class="field">Screen size
             <select id="screen-size">
-              <option value="2.0">2.0" (Adafruit 4311)</option>
+              <option value="3.2">3.2" (Tomo's screen)</option>
               <option value="2.8">2.8"</option>
-              <option value="3.2">3.2"</option>
+              <option value="2.0">2.0"</option>
             </select>
           </label>
         </div>
@@ -858,7 +858,7 @@ document.getElementById("voice-file").addEventListener("change", async e => {
 
 // Zoom and real-size calibration
 const holder = screen.parentElement;
-let zoom = window.innerWidth >= 1100 && window.innerHeight >= 900 ? "2" : "1", pxPerMm = 3.78, diag = "2.0";
+let zoom = window.innerWidth >= 1100 && window.innerHeight >= 900 ? "2" : "1", pxPerMm = 3.78, diag = "3.2";
 try {
   zoom = localStorage.getItem("tomo-zoom") || zoom; pxPerMm = parseFloat(localStorage.getItem("tomo-pxmm")) || pxPerMm;
   diag = localStorage.getItem("tomo-diag") || diag;

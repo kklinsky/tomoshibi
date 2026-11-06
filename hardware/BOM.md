@@ -17,7 +17,7 @@ Wiring is documented in [wiring.md](wiring.md).
 | Raspberry Pi 5 | 1 | **8 GB recommended** if you want the local fallback LLM; 4 GB is enough for local speech only |
 | Jabra Speak 410 (USB) | 1 | Speakerphone with echo cancellation. Sits on top of the enclosure. Its USB cable is fixed and fairly long; plan strain relief and where the extra length coils inside |
 | 30 mm arcade button with LED: [Adafruit #3491](https://www.adafruit.com/product/3491) (translucent clear), or the yellow LED version from the same family | 1 | 30 mm mounting hole, screw-in nut for panels up to ~20 mm thick. Micro-switch with a soft action (no strong click). **LED: 5 V, ~10 mA, 200 Ω resistor built in.** It's only ~2 mA (dim) at 3.3 V, so it's switched from 5 V through a transistor. 0.11" (2.8 mm) quick-connect terminals. Yellow is easier to see when unlit and suits the "lamplight" theme |
-| 2.0" 240×320 IPS TFT, ST7789, with EYESPI breakout (Adafruit) | 1 | SPI display for the animated face, mounted in **portrait** (taller than wide). The microSD slot on the breakout isn't used |
+| 3.2" 240×320 IPS TFT, ST7789, on a breakout board: [EastRising ER-TFT032IPS-3.2-4334](https://www.buydisplay.com/3-2-inch-240x320-ips-tft-lcd-module-for-arduino-and-raspberry-pi), order code `ER-TFT032IPS-3.2-4334-3662-4SPI-3.3V` | 1 | SPI display for the animated face, mounted in **portrait** (taller than wide). Order it with 4-wire SPI, 3.3 V, the pin header and no touch panel. PCB 64.9 × 89.4 mm, visible area 50.2 × 66.4 mm. The microSD slot on the breakout isn't used |
 
 ### Power, cooling and timekeeping
 | Part | Qty | Notes |
@@ -32,19 +32,18 @@ Wiring is documented in [wiring.md](wiring.md).
 | **Option A:** high-endurance microSD, 64 GB (e.g. SanDisk High Endurance, Samsung PRO Endurance) | 1 | Simplest. Use an endurance-rated card: ordinary cards are the most common failure on an always-on Pi |
 | **Option B (recommended):** Raspberry Pi M.2 HAT+ with a 256 GB NVMe SSD | 1 | More reliable and faster at loading speech models; room for a local LLM. Takes more space inside the enclosure |
 
-### Electronics for the button LED and screen
+### Electronics for the button LED
 | Part | Qty | Notes |
 |---|---|---|
 | NPN transistor (e.g. 2N2222 / PN2222) **or** logic-level N-channel MOSFET (e.g. 2N7000) | 1 | Low-side switch so a GPIO pin can turn on the button's 5 V LED (~10 mA, so any small-signal part works) |
 | Resistors: 1 kΩ base resistor (NPN) **or** 220 Ω gate + 10 kΩ pull-down (MOSFET) | 1 each | No LED current-limiting resistor needed; it's built into the button. See [wiring.md](wiring.md) |
 | Small protoboard or Raspberry Pi proto HAT | 1 | Holds the LED driver circuit and connectors |
-| Adafruit EYESPI Pi Beret | 1 | Connects the display to the Pi with a flat cable instead of loose jumpers. Alternative: jumper wires to the breakout's header pins |
-| EYESPI flat (FPC) cable, length to suit the enclosure | 1 | Only needed with the Pi Beret |
 
 ### Connectors and wiring
 | Part | Qty | Notes |
 |---|---|---|
 | 0.11" (2.8 mm) quick-connect wire pairs (Adafruit sells pre-crimped pairs) | 2 pairs | One pair for the switch, one for the LED. Or crimp your own 2.8 mm female spade terminals |
+| Female-to-female jumper wires, 2.54 mm | 9 | Display header to the Pi. Use short wires, since long ones can garble the SPI signal |
 | JST-XH or Dupont connector kit | 1 kit | So every part can be unplugged for service without desoldering |
 | Hook-up wire (22–26 AWG) | — | |
 | Heat-shrink tubing | — | |
@@ -84,6 +83,10 @@ Wiring is documented in [wiring.md](wiring.md).
 
 ## Open items for hw-rev-A
 - [x] Button: Adafruit #3491 family. LED is 5 V / ~10 mA with built-in resistor; 0.11" terminals
+- [x] Display: EastRising ER-TFT032IPS-3.2-4334, 3.2", 4-wire SPI, 3.3 V, pin header
+- [x] Display J5: open, as shipped on a 4SPI 3.3 V board (the datasheet contradicts itself; see [wiring.md](wiring.md))
+- [ ] Measure the display's BL pin current, to decide between GPIO and a transistor
+- [ ] Design the enclosure around the 3.2" display and its rear pin header
 - [ ] Button color: clear vs yellow
 - [ ] Identify the LED's + and − terminals on the actual button (check the markings, or test with 5 V)
 - [ ] Decide storage: high-endurance microSD or NVMe (bench unit currently runs from a 128 GB microSD)

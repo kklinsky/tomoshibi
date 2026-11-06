@@ -30,7 +30,7 @@ beautifully, but the character design is up to you.
 
 | | |
 |---|---|
-| Size | **2.0 inches** diagonal (about the size of a large postage stamp) |
+| Size | **3.2 inches** diagonal (about the size of a matchbox) |
 | Resolution | **240 × 320 pixels**, **portrait** (taller than wide) |
 | Face area | The **top 240 × 240 pixels** (a square). The bottom 80 pixels are reserved for a day/time strip ("Saturday" over "afternoon · 2:15") that the software draws |
 | Colors | Full color IPS screen. Looks best with a **dark background** and **warm, soft colors** |
@@ -39,7 +39,7 @@ beautifully, but the character design is up to you.
 Because the screen is tiny and viewed from a distance:
 - Use **thick, bold shapes** and **strong contrast**. Fine lines and small details disappear.
 - Big eyes do most of the work. The mouth can be simple.
-- Before finishing, **look at your drawing at actual size** (the face area is about 3 cm wide) from
+- Before finishing, **look at your drawing at actual size** (the face area is about 5 cm wide) from
   2–3 meters away. If you can't tell "listening" from "idle" at that distance, push it further.
 
 ### Color suggestions
@@ -183,7 +183,7 @@ Please put everything in one folder named `tomoshibi` (zip it if sending by emai
 - Flash, flicker, spin quickly, or change color suddenly.
 - Look like a realistic human or a specific real person.
 - Show text (the software handles all words on screen).
-- Rely on tiny details that vanish at 2 inches.
+- Rely on tiny details that vanish on a small screen.
 
 ## 7. Suggested order of work
 

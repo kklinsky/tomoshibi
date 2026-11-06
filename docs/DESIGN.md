@@ -39,7 +39,7 @@ This section covers the core parts and design decisions. The full parts list (po
 | Raspberry Pi 5 | **8 GB recommended** if running a local fallback LLM; 4 GB is fine for STT/TTS only. Active cooler, official 27 W USB-C PSU, RTC battery. |
 | Jabra Speak 410 (USB) | Full-duplex speakerphone with echo cancellation, good pickup across a room. Appears as a standard USB audio device. **Its touch buttons (mute, volume, call) are easy to hit by accident.** The enclosure should cover mute/call, or the software should detect mute and say "I'm muted, press the button with the line through it." |
 | **30 mm** arcade button with built-in LED | Smaller than first planned, because the top of the enclosure is taken by the Jabra. Placement and making it easy to find are covered under *Enclosure layout* below. Input on a GPIO with internal pull-up. **Check the LED voltage:** most are 5 V or 12 V with an internal resistor. GPIO pins are 3.3 V / ~16 mA, so drive the LED through a small N-channel MOSFET or NPN transistor (5 V from the Pi header). The LED is on only while listening (§4), so simple on/off is enough; PWM allows a soft fade. |
-| 2.0" 240×320 IPS TFT, ST7789 (Adafruit EYESPI) | Mounted in **portrait** (taller than wide). SPI. Connect via an EYESPI adapter (e.g. EYESPI Pi Beret) or jumper wires to SPI0. The microSD slot on the breakout isn't needed. |
+| 3.2" 240×320 IPS TFT, ST7789 (EastRising ER-TFT032IPS-3.2-4334) | Mounted in **portrait** (taller than wide). 4-wire SPI at 3.3 V, connected to SPI0 from the breakout's 2×20 pin header (see [`wiring.md`](../hardware/wiring.md)). The microSD slot on the breakout isn't needed. |
 | 3D-printed enclosure (Fusion 360) | Lantern/lamp form to suit the name. Jabra on top, screen and button on the front (see below). Weighted base, cable strain relief, ventilation for the Pi. Lives in its own repo, `tomoshibi-enclosure` (§11). |
 
 ### Brand mark
@@ -52,7 +52,7 @@ The wordmark **tomo** in **Fredoka SemiBold**, lamplight `#f2b45a` on night `#1e
         ├──────────────────────┤     hides its mute/call touch keys
         │     ┌──────────┐     │
         │     │          │     │
-        │     │   ◕‿◕    │     │   ← 2.0" screen in portrait, front face
+        │     │   ◕‿◕    │     │   ← 3.2" screen in portrait, front face
         │     │          │     │     angled ~15° up toward a seated person
         │     │ Saturday │     │
         │     │ afternoon│     │
@@ -893,7 +893,7 @@ Why separate:
 - Different audiences and release pace: some builders will only print the case, others will remix it around a different speakerphone or screen. The enclosure can also be published on Printables/MakerWorld.
 
 Keeping them in step:
-- The physical part list (Pi 5, Jabra Speak 410, 30 mm button, 2.0" ST7789, mounting hardware) is a **hardware revision**, e.g. `hw-rev-A`, defined in `tomoshibi/hardware/BOM.md`.
+- The physical part list (Pi 5, Jabra Speak 410, 30 mm button, 3.2" ST7789, mounting hardware) is a **hardware revision**, e.g. `hw-rev-A`, defined in `tomoshibi/hardware/BOM.md`.
 - Each enclosure release says which hardware revision it fits ("Enclosure v1.2 → hw-rev-A"). The code's `BOM.md` links to the matching enclosure release.
 - A change of physical parts bumps the hardware revision in both repos.
 
