@@ -3,8 +3,7 @@
 press -> chime -> listen -> transcribe -> stream reply -> speak sentence by sentence ->
 listen for a follow-up -> ... -> back to idle when nobody speaks.
 
-For now a keyboard key stands in for the arcade button, and the button light is shown as
-lines in the terminal.
+The arcade button starts it, and a keyboard key works too, which helps on the bench.
 """
 
 import re
@@ -48,6 +47,7 @@ class Conversation:
         self.conf = conf
         self.typed = typed
         self.face = face or NoFace()
+        self.light = lambda on: None  # the button's light, once the button is set up
         specs = models.load_lock(lock_path)
         device = cfg.get(conf, "audio.device", audio.DEFAULT_DEVICE)
         self.end_silence = cfg.seconds(cfg.get(conf, "conversation.end_of_speech_silence"), 1.5)
@@ -121,8 +121,15 @@ class Conversation:
         self.pressed.set()
 
     def start_button(self) -> None:
+        from tomoshibi.button import GpioButton
         from tomoshibi.keys import KeyButton
 
+        try:
+            self.light = GpioButton(self.press, int(cfg.get(self.conf, "button.pin", 22)),
+                                    int(cfg.get(self.conf, "button.light_pin", 23))).light
+            status("the talk button is ready")
+        except (ImportError, OSError) as e:
+            status(f"no talk button: {e}")
         button = KeyButton(self.press)
         if button.devices:
             status(f"press Space or Enter on the keyboard to talk ({len(button.devices)} keyboard(s))")
@@ -244,6 +251,7 @@ class Conversation:
         ep = Endpointer(end_silence=self.end_silence, wait_for_speech=wait)
         frames: list[np.ndarray] = []
         recent: list[np.ndarray] = []
+        self.light(True)
         with audio.Microphone(self.device) as mic:
             while True:
                 frame = mic.read()
@@ -259,6 +267,7 @@ class Conversation:
                         break
                 elif state in ("done", "timeout"):
                     break
+        self.light(False)
         if not frames:
             return ""
         status("thinking: face looks up, light off")

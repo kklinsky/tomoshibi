@@ -1,4 +1,4 @@
-"""The talk button: a keyboard key for now, the arcade button on GPIO later.
+"""A keyboard key as a talk button, for the bench. The arcade button is in button.py.
 
 Reads Linux input events straight from /dev/input, so no extra packages are needed and it
 works whether or not a terminal has focus. The user needs to be in the `input` group.

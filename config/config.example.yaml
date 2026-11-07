@@ -13,6 +13,10 @@ display:
   reset_pin: 27
   backlight_pin: 18
 
+button:
+  pin: 22
+  light_pin: 23
+
 speech:
   stt_model: whisper-base-en          # name from models.lock
   tts_model: kokoro-82m-int8
