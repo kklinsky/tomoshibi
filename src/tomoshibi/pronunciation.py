@@ -88,9 +88,52 @@ def _say_time(match: re.Match) -> str:
     return f"{said} {'in the afternoon' if hour < 5 or hour == 12 else 'in the evening' if hour < 9 else 'at night'}"
 
 
+# Dollar amounts, which the voice read in written order ("$160" came out as "dollar one
+# hundred sixty"). Amounts with more than two decimals and no scale word are left alone.
+MONEY = re.compile(r"\$(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?\b(?:\s*(thousand|million|billion|trillion)\b)?",
+                   re.IGNORECASE)
+ONES = ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+        "nineteen")
+TENS = ("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+SCALES = ((10**12, "trillion"), (10**9, "billion"), (10**6, "million"), (1000, "thousand"))
+
+
+def _say_number(n: int) -> str:
+    if n < 20:
+        return ONES[n]
+    if n < 100:
+        return TENS[n // 10] + (f" {ONES[n % 10]}" if n % 10 else "")
+    if n < 1000:
+        rest = n % 100
+        return f"{ONES[n // 100]} hundred" + (f" {_say_number(rest)}" if rest else "")
+    for size, name in SCALES:
+        if n >= size:
+            rest = n % size
+            return f"{_say_number(n // size)} {name}" + (f" {_say_number(rest)}" if rest else "")
+    raise ValueError(n)
+
+
+def _say_money(match: re.Match) -> str:
+    whole, decimals, scale = match.group(1).replace(",", ""), match.group(2), match.group(3)
+    dollars = int(whole)
+    if scale:  # "$2.5 million" is two point five million dollars
+        point = " point " + " ".join(ONES[int(d)] for d in decimals) if decimals else ""
+        return f"{_say_number(dollars)}{point} {scale.lower()} dollars"
+    if decimals and len(decimals) > 2:
+        return match.group(0)
+    cents = int(decimals.ljust(2, "0")) if decimals else 0
+    said_cents = f"{_say_number(cents)} cent{'' if cents == 1 else 's'}"
+    if not dollars and cents:
+        return said_cents
+    said = f"{_say_number(dollars)} dollar{'' if dollars == 1 else 's'}"
+    return f"{said} and {said_cents}" if cents else said
+
+
 def fix_homographs(text: str) -> str:
     for pattern, replacement in HOMOGRAPHS:
         text = pattern.sub(replacement, text)
+    text = MONEY.sub(_say_money, text)
     text = CLOCK_TIME.sub(_say_time, text)
     return CALL_LETTERS.sub(_spell, text)
 

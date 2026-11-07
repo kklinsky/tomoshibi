@@ -105,6 +105,25 @@ def test_clock_times_sound_natural():
     assert f("Tested at 1:00:30 today.") == "Tested at 1:00:30 today."
 
 
+def test_dollar_amounts_sound_natural():
+    from tomoshibi.pronunciation import fix_homographs as f
+
+    assert f("It costs $160.") == "It costs one hundred sixty dollars."
+    assert f("Just $1 today") == "Just one dollar today"
+    assert f("It was $0 down") == "It was zero dollars down"
+    assert f("About $1,200, I think") == "About one thousand two hundred dollars, I think"
+    assert f("That's $1,000,005.") == "That's one million five dollars."
+    assert f("Lunch was $12.50.") == "Lunch was twelve dollars and fifty cents."
+    assert f("Lunch was $12.5.") == "Lunch was twelve dollars and fifty cents."
+    assert f("A stamp was $1.01") == "A stamp was one dollar and one cent"
+    assert f("Coffee was $0.75") == "Coffee was seventy five cents"
+    assert f("It's $5.00.") == "It's five dollars."
+    assert f("They paid $2.5 million.") == "They paid two point five million dollars."
+    assert f("They paid $3 billion.") == "They paid three billion dollars."
+    assert f("From $10 to $20.") == "From ten dollars to twenty dollars."
+    assert f("A rate of $1.234") == "A rate of $1.234"
+
+
 def test_call_letters_are_spelled_out():
     from tomoshibi.pronunciation import fix_homographs as f
 
