@@ -88,7 +88,7 @@ else
     sudo useradd --system --home-dir "$STATE_DIR" --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER"
     ok "created"
 fi
-for group in audio gpio spi video; do
+for group in audio gpio spi video input; do
     getent group "$group" >/dev/null && sudo usermod -aG "$group" "$SERVICE_USER"
 done
 # Let the admin read models/data and run tools as themselves (after next login).
@@ -194,8 +194,23 @@ sudo -u "$SERVICE_USER" env HF_HOME="$STATE_DIR/.cache/huggingface" HF_HUB_DISAB
 step "Self-test"
 sudo -u "$SERVICE_USER" /usr/local/bin/tomoshibi --lock "$release/models.lock" doctor | sed 's/^/    /' || true
 
+# ---------------------------------------------------------------------------
+step "Starting Tomoshibi automatically"
+sudo install -m 644 -o root -g root "$release/deploy/tomoshibi.service" /etc/systemd/system/tomoshibi.service
+sudo systemctl daemon-reload
+sudo systemctl enable --quiet tomoshibi
+ok "it now starts whenever the Pi powers on"
+if sudo grep -Eq '^(ANTHROPIC_API_KEY|OPENAI_API_KEY)=.' "$CONFIG_DIR/secrets.env"; then
+    sudo systemctl restart tomoshibi
+    ok "started"
+else
+    ok "not started yet: add your API key to $CONFIG_DIR/secrets.env, then run:"
+    ok "    sudo systemctl restart tomoshibi"
+fi
+
 step "Finished"
-ok "Not installed yet: the background service (there is no voice app to run yet)."
+ok "Check on it with:  systemctl status tomoshibi"
+ok "See what it's doing with:  journalctl -u tomoshibi -f"
 if (( REBOOT_NEEDED )); then
     ok "Please reboot to finish enabling SPI:  sudo reboot"
 fi

@@ -1,0 +1,24 @@
+[Unit]
+Description=Tomoshibi voice companion
+After=local-fs.target sound.target
+# A power cut can mean many restarts in a row; never give up.
+StartLimitIntervalSec=0
+
+[Service]
+User=tomoshibi
+Group=tomoshibi
+WorkingDirectory=/var/lib/tomoshibi
+Environment=HOME=/var/lib/tomoshibi
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/local/bin/tomoshibi chat
+StandardInput=null
+Restart=always
+RestartSec=5
+# Exit code 2 means setup is wrong (e.g. no API key); restarting won't fix that.
+RestartPreventExitStatus=2
+# SIGINT lets Tomo turn the screen and button light off on the way out.
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

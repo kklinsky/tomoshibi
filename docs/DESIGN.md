@@ -765,7 +765,7 @@ The README also shows the cautious version (download, read, then run) for people
 1. **Preflight:** confirms Pi 5, 64-bit OS, supported OS release, free disk space, internet. Stops with a clear message if anything is wrong.
 2. **System packages** (`apt`): Python venv, ALSA/PortAudio, `lgpio`, `git`, build basics. Installs **uv** for fast, reproducible Python environments.
 3. **Hardware config:** enables SPI (`raspi-config nonint`), enables the hardware watchdog, sets the timezone and configures the RTC.
-4. **Service user:** creates a `tomoshibi` system user in the `audio`, `gpio` and `spi` groups. The service never runs as root.
+4. **Service user:** creates a `tomoshibi` system user in the `audio`, `gpio`, `spi`, `video` and `input` groups. The service never runs as root.
 5. **Code:** installs the **latest tagged release** (not `main`) into `releases/<version>/` with its own venv from a locked `uv.lock`, and points `current` at it.
 6. **Models:** downloads the STT models, TTS voices (Kokoro default, Piper alternative) and VAD model listed in `models.lock`, each pinned to a Hugging Face commit. Optional local LLM via Ollama if the Pi has 8 GB and the user opts in.
 7. **Config & data:** creates `/etc/tomoshibi/config.yaml` from the example, `secrets.env` (mode 0600), and the data directory seeded from `examples/data/`. **Never overwrites existing config or data** on re-run.
