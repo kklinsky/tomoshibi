@@ -65,9 +65,33 @@ def _spell(match: re.Match) -> str:
     return f"{letters} {' '.join(match.group(2))}" if match.group(2) else letters
 
 
+# Clock times the voice reads digit by digit ("11:00" came out as "eleven zero zero"). Other
+# times, like 11:48, it already says well.
+CLOCK_TIME = re.compile(r"\b(1[0-2]|0?[1-9]):0(\d)\b(?!:\d)(?:\s*([AP])M\b|\s*([AP])\.M\.)?", re.IGNORECASE)
+PART_OF_DAY_FOLLOWS = re.compile(r"\s+on\s+\w+\s+(morning|afternoon|evening|night)\b", re.IGNORECASE)
+WORDS = ("twelve", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+         "ten", "eleven")
+
+
+def _say_time(match: re.Match) -> str:
+    hour, minute = int(match.group(1)), int(match.group(2))
+    half = (match.group(3) or match.group(4) or "").upper()
+    if minute:
+        return f"{WORDS[hour % 12]} oh {WORDS[minute]}" + (f" {half}M" if half else "")
+    if hour == 12 and half:
+        return "noon" if half == "P" else "midnight"
+    said = f"{WORDS[hour % 12]} o'clock"
+    if not half or PART_OF_DAY_FOLLOWS.match(match.string, match.end()):  # "on Saturday morning"
+        return said
+    if half == "A":
+        return f"{said} in the morning"
+    return f"{said} {'in the afternoon' if hour < 5 or hour == 12 else 'in the evening' if hour < 9 else 'at night'}"
+
+
 def fix_homographs(text: str) -> str:
     for pattern, replacement in HOMOGRAPHS:
         text = pattern.sub(replacement, text)
+    text = CLOCK_TIME.sub(_say_time, text)
     return CALL_LETTERS.sub(_spell, text)
 
 

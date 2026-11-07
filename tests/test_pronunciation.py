@@ -89,6 +89,22 @@ def test_homographs_lives_and_live():
     assert f("She delivers.") == "She delivers."
 
 
+def test_clock_times_sound_natural():
+    from tomoshibi.pronunciation import fix_homographs as f
+
+    assert f("It's 11:00.") == "It's eleven o'clock."
+    assert f("It's 11:00 AM.") == "It's eleven o'clock in the morning."
+    assert f("The dentist is at 2:00 PM.") == "The dentist is at two o'clock in the afternoon."
+    assert f("Supper at 6:00 pm") == "Supper at six o'clock in the evening"
+    assert f("Bed at 9:00 p.m. tonight") == "Bed at nine o'clock at night tonight"
+    assert f("It's 12:00 PM.") == "It's noon."
+    assert f("It's 12:00 AM.") == "It's midnight."
+    assert f("It's 11:00 AM on Saturday morning.") == "It's eleven o'clock on Saturday morning."
+    assert f("It's 8:05 AM.") == "It's eight oh five AM."
+    assert f("It's 11:48 AM.") == "It's 11:48 AM."
+    assert f("Tested at 1:00:30 today.") == "Tested at 1:00:30 today."
+
+
 def test_call_letters_are_spelled_out():
     from tomoshibi.pronunciation import fix_homographs as f
 
