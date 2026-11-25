@@ -10,13 +10,16 @@ from pathlib import Path
 
 import yaml
 
-from tomoshibi import paths
+from tomoshibi import __version__, paths
+from tomoshibi import config as settings
 
 TEMPLATE = "about_me.md"
 
 # Features that exist in this version of the software. Add a name here when it ships.
 BUILT: frozenset[str] = frozenset({"conversation", "people", "memories", "volume", "calendar", "reminders",
                                     "web_search", "weather", "news"})
+
+GITHUB_REPO = "kklinsky/tomoshibi"
 
 # What the project's own name means. A family that renames the persona can give their name a
 # story with `name_meaning` in persona.yaml.
@@ -139,6 +142,43 @@ def privacy(config: dict) -> list[str]:
     return lines
 
 
+def _model_name(model: str) -> str:
+    """"claude-haiku-5-5" -> "Claude Haiku 5.5", a name the voice can say."""
+    words = str(model).split("-")
+    version = [w for w in words if w.isdigit()]
+    return " ".join([w.title() for w in words if not w.isdigit()] + ([".".join(version)] if version else []))
+
+
+def _engine_name(model: str) -> str:
+    """"whisper-base-en" -> "Whisper", "kokoro-82m-int8" -> "Kokoro"."""
+    return str(model).split("-")[0].title()
+
+
+def technical(config: dict) -> list[str]:
+    """Facts about the device. Settings come from the live config, so they can't go stale."""
+    lines = [
+        (f"Your software is Tomoshibi, version {__version__}. Its code is public on GitHub, "
+         f"under {GITHUB_REPO}."),
+        "You run on a Raspberry Pi 5, a small single-board computer.",
+        "You hear and speak through a USB speakerphone.",
+        "You have one arcade button with a light built in.",
+    ]
+    if settings.get(config, "display.enabled", True):
+        lines.append("Your face is on a 3.2 inch color screen that stands upright, "
+                     "240 pixels wide and 320 tall.")
+    if stt := settings.get(config, "speech.stt_model"):
+        lines.append(f"Speech is turned into text on this device by {_engine_name(stt)}.")
+    if tts := settings.get(config, "speech.tts_model"):
+        voice = settings.get(config, "speech.tts_voice")
+        named = f", using the voice called {str(voice).split('_')[-1].title()}" if voice else ""
+        lines.append(f"Your voice is made on this device by {_engine_name(tts)}{named}.")
+    if model := settings.get(config, "llm.primary.model"):
+        maker = {"anthropic": "Anthropic"}.get(settings.get(config, "llm.primary.provider", "anthropic"))
+        lines.append(f"Your answers are written by an AI model called {_model_name(model)}"
+                     + (f", from {maker}" if maker else "") + ", which you reach over the internet.")
+    return lines
+
+
 def _join(names: list[str]) -> str:
     return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
 
@@ -164,6 +204,7 @@ def render(persona: dict, profile: dict, people: list[dict], config: dict,
     values["capabilities"] = _bullets(can).format(**values)
     values["cannot"] = _bullets(cannot).format(**values)
     values["privacy"] = _bullets(privacy(config)).format(**values)
+    values["technical"] = _bullets(technical(config))
     meaning = persona.get("name_meaning")
     if not meaning and values["name"].lower() in ("tomo", "tomoshibi"):
         meaning = TOMOSHIBI_MEANING

@@ -50,6 +50,28 @@ def test_privacy_mentions_summaries_only_when_enabled():
     assert "Once a day the family gets a short summary" in render(on)
 
 
+def test_technical_details_come_from_the_config():
+    from tomoshibi import __version__
+
+    text = render()
+    assert f"version {__version__}" in text
+    assert "Raspberry Pi 5" in text
+    assert "3.2 inch color screen" in text
+    assert "by Whisper." in text
+    assert "by Kokoro, using the voice called Fenrir." in text
+    assert "Claude Haiku 5.5, from Anthropic" in text
+
+    changed = {**CONFIG, "display": {"enabled": False},
+               "speech": {"stt_model": "moonshine-tiny-en", "tts_model": "piper-amy"},
+               "llm": {"primary": {"provider": "anthropic", "model": "claude-sonnet-5-5"}}}
+    text = render(changed)
+    assert "color screen" not in text
+    assert "by Moonshine." in text
+    assert "by Piper." in text
+    assert "Claude Sonnet 5.5" in text
+    assert "Haiku" not in text
+
+
 def test_template_has_no_family_names():
     template = (ROOT / "src" / "tomoshibi" / "prompts" / "about_me.md").read_text(encoding="utf-8")
     for name in ("Bob", "Carol", "David", "Karen", "Mike", "Emma"):
@@ -73,7 +95,7 @@ def test_name_meaning():
     other = about.render({**persona, "name": "Sunny"},
                          yaml.safe_load((EXAMPLES / "profile.yaml").read_text(encoding="utf-8")),
                          yaml.safe_load((EXAMPLES / "people.yaml").read_text(encoding="utf-8"))["people"], CONFIG)
-    assert "Tomoshibi" not in other and "## Your name" not in other and "{" not in other
+    assert "short for Tomoshibi" not in other and "## Your name" not in other and "{" not in other
     own = about.render({**persona, "name": "Sunny", "name_meaning": "I'm named after the sunshine."},
                        yaml.safe_load((EXAMPLES / "profile.yaml").read_text(encoding="utf-8")),
                        yaml.safe_load((EXAMPLES / "people.yaml").read_text(encoding="utf-8"))["people"], CONFIG)

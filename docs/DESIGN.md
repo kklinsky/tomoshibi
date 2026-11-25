@@ -724,6 +724,7 @@ A template in the public repo, [`src/tomoshibi/prompts/about_me.md`](../src/tomo
 | `{caregiver}` | `profile.yaml` → `caregiver` (a `people.yaml` id), e.g. Carol |
 | `{capabilities}`, `{cannot}` | **Generated from config**: web search on/off, weather, news, which family members it can message, reminders, quiet hours |
 | `{privacy}` | Generated from config: listening only while the light is on, where conversations are stored, whether daily family summaries are switched on |
+| `{technical}` | The software version, plus the hardware and the speech and AI models from config. Shared only when someone asks how it works |
 
 Because the capability and privacy lines come from config, they can't drift from reality: turn off web search and Tomoshibi stops saying it can look things up. `tomoshibi about` prints the rendered result so the family can read exactly what it believes about itself.
 
