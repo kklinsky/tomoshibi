@@ -16,6 +16,8 @@ from tomoshibi import config as settings
 TEMPLATE = "about_me.md"
 
 # Features that exist in this version of the software. Add a name here when it ships.
+# Not yet: "messaging", "alerts" (telling the family about a fall or a missed reminder),
+# "daily_summary".
 BUILT: frozenset[str] = frozenset({"conversation", "people", "memories", "volume", "calendar", "reminders",
                                     "web_search", "weather", "news"})
 
@@ -120,7 +122,7 @@ def capabilities(config: dict, people: list[dict],
     return can, cannot
 
 
-def privacy(config: dict) -> list[str]:
+def privacy(config: dict, built: frozenset[str] = BUILT) -> list[str]:
     lines = [
         "You only listen while your button light is on. You never record when it's off.",
         (
@@ -129,16 +131,22 @@ def privacy(config: dict) -> list[str]:
         ),
         "Your conversation history stays on this device.",
     ]
-    if (config.get("privacy") or {}).get("daily_summary"):
+    if "daily_summary" in built and (config.get("privacy") or {}).get("daily_summary"):
         lines.append(
             "Once a day the family gets a short summary, such as how the day went and whether "
             "reminders were answered. It never includes word-for-word conversations."
         )
     else:
         lines.append("You don't send the family summaries of what {person} talks about.")
-    lines.append(
-        "If {person} seems hurt or in danger, or misses a reminder, you let the family know."
-    )
+    if "alerts" in built:
+        lines.append(
+            "If {person} seems hurt or in danger, or misses a reminder, you let the family know."
+        )
+    else:
+        lines.append(
+            "You can't contact the family yourself, not even in an emergency, and they aren't "
+            "told when a reminder is missed."
+        )
     return lines
 
 
@@ -203,7 +211,7 @@ def render(persona: dict, profile: dict, people: list[dict], config: dict,
     }
     values["capabilities"] = _bullets(can).format(**values)
     values["cannot"] = _bullets(cannot).format(**values)
-    values["privacy"] = _bullets(privacy(config)).format(**values)
+    values["privacy"] = _bullets(privacy(config, built)).format(**values)
     values["technical"] = _bullets(technical(config))
     meaning = persona.get("name_meaning")
     if not meaning and values["name"].lower() in ("tomo", "tomoshibi"):

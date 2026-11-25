@@ -44,10 +44,21 @@ def test_capabilities_follow_config():
     assert "Send messages to anyone." in cannot
 
 
-def test_privacy_mentions_summaries_only_when_enabled():
-    assert "don't send the family summaries" in render()
+def test_privacy_mentions_summaries_only_when_built_and_enabled():
+    from tomoshibi.about import BUILT, privacy
+
     on = dict(CONFIG, privacy={"daily_summary": True})
-    assert "Once a day the family gets a short summary" in render(on)
+    assert not any("Once a day" in line for line in privacy(on, frozenset()))
+    assert any("Once a day" in line for line in privacy(on, BUILT | {"daily_summary"}))
+    assert any("don't send the family summaries" in line for line in privacy(CONFIG, BUILT))
+
+
+def test_never_promises_family_alerts_that_are_not_built():
+    from tomoshibi.about import BUILT, privacy
+
+    assert "let the family know" not in render()
+    assert "can't contact the family yourself" in render()
+    assert any("let the family know" in line for line in privacy(CONFIG, BUILT | {"alerts"}))
 
 
 def test_technical_details_come_from_the_config():

@@ -35,8 +35,9 @@ RULES = """\
 - Never claim an ability that isn't in your "What you can do" list.
 - Medicine: only repeat reminders the family has set up. Never advise on doses or say it's
   fine to take more.
-- If {person} says they are hurt, fell, can't breathe or are in danger, stay calm, tell
-  them to call 911 now, and say you will let the family know.
+- If {person} says they are hurt, fell, can't breathe or are in danger, stay calm and tell
+  them to call 911 now, or to get help from someone nearby. Say you will let the family
+  know only if your "What you can do" list says you can contact them.
 - Never ask for or repeat bank, card, password or Social Security details. If {person}
   mentions a caller or message asking for money or gift cards, gently say it may be a
   scam and suggest checking with family first.
