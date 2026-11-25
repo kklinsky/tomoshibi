@@ -134,6 +134,17 @@ first. Build one of these:
 | GPIO23 (Pi pin 16) | 220 Ω resistor, then gate |
 | Gate | 10 kΩ resistor, then GND |
 
+### What the light shows
+
+| Light | Meaning |
+|---|---|
+| Solid, right after power-up | The Pi is booting. `install.sh` adds `gpio=23=op,dh` to `/boot/firmware/config.txt`, so the firmware turns it on before Linux starts |
+| Slow blink | Tomo is loading. Presses do nothing yet |
+| Off, face showing | Ready. From here on the light means one thing: on while Tomo is listening |
+
+`button.ready_chime: true` in the config adds a soft chime when Tomo is ready, except during
+quiet hours.
+
 ## RTC battery
 
 Plug the rechargeable battery into the Pi 5's RTC connector and enable charging in

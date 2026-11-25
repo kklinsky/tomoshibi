@@ -169,15 +169,19 @@ def main(argv: list[str] | None = None) -> int:
         from tomoshibi import face
 
         conf = cfg.load(args.config)
-        # The screen comes first: loading everything else takes a while.
+        # The screen and the blinking button light come first: loading everything else takes
+        # a while, and they show Tomo is starting.
         screen = face.NoFace() if args.type else face.open_display(conf)
+        from tomoshibi.button import open_button
+
+        button = None if args.type else open_button(conf)
 
         from tomoshibi.conversation import Conversation
         from tomoshibi.llm import ProviderError
 
         try:
             talk = Conversation(conf, lock_path, typed=args.type, stt_name=args.stt,
-                                tts_name=args.tts, face=screen)
+                                tts_name=args.tts, face=screen, button=button)
             screen.ready()
             talk.run()
         except ProviderError as e:
@@ -186,6 +190,8 @@ def main(argv: list[str] | None = None) -> int:
         except KeyboardInterrupt:
             pass
         finally:
+            if button:
+                button.light(False)
             screen.close()
         return 0
 

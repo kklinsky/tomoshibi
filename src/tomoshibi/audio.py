@@ -158,6 +158,11 @@ def chime(rate: int = 24_000, pitch: float = 880.0, seconds: float = 0.18) -> np
     return (np.concatenate(out) * 32767).astype(np.int16)
 
 
+def ready_chime(rate: int = 24_000) -> np.ndarray:
+    """Three soft rising notes when Tomo has started and is ready, unlike the press chime's two."""
+    return np.concatenate([chime(rate, 660.0), chime(rate, 990.0, seconds=0.24)])
+
+
 # --- the reminder tune ---------------------------------------------------------------------
 # An original short melody in the spirit of Japanese railway platform chimes: bright,
 # bell-like and over in a few seconds. Composed for Tomoshibi, so it can be shared freely.

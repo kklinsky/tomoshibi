@@ -43,10 +43,11 @@ def status(text: str) -> None:
 
 class Conversation:
     def __init__(self, conf: dict, lock_path: Path, typed: bool = False,
-                 stt_name: str | None = None, tts_name: str | None = None, face=None):
+                 stt_name: str | None = None, tts_name: str | None = None, face=None, button=None):
         self.conf = conf
         self.typed = typed
         self.face = face or NoFace()
+        self.button = button  # opened early by the caller, so its light blinks while loading
         self.light = lambda on: None  # the button's light, once the button is set up
         specs = models.load_lock(lock_path)
         device = cfg.get(conf, "audio.device", audio.DEFAULT_DEVICE)
@@ -124,12 +125,18 @@ class Conversation:
         from tomoshibi.button import GpioButton
         from tomoshibi.keys import KeyButton
 
-        try:
-            self.light = GpioButton(self.press, int(cfg.get(self.conf, "button.pin", 22)),
-                                    int(cfg.get(self.conf, "button.light_pin", 23))).light
+        if self.button:
+            self.button.on_press = self.press
+            self.light = self.button.light
+            self.light(False)  # stops the startup blink
             status("the talk button is ready")
-        except (ImportError, OSError) as e:
-            status(f"no talk button: {e}")
+        else:
+            try:
+                self.light = GpioButton(self.press, int(cfg.get(self.conf, "button.pin", 22)),
+                                        int(cfg.get(self.conf, "button.light_pin", 23))).light
+                status("the talk button is ready")
+            except (ImportError, OSError) as e:
+                status(f"no talk button: {e}")
         button = KeyButton(self.press)
         if button.devices:
             status(f"press Space or Enter on the keyboard to talk ({len(button.devices)} keyboard(s))")
@@ -146,6 +153,8 @@ class Conversation:
             self._run_typed()
             return
         self.start_button()
+        if cfg.get(self.conf, "button.ready_chime", False) and not in_quiet_hours(self.conf):
+            self.speaker.play(audio.ready_chime(), 24_000, voice=False)
         status("idle: face relaxed, light off")
         while True:
             self.face.rest(in_quiet_hours(self.conf))

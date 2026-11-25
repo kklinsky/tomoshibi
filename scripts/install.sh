@@ -185,6 +185,25 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+step "Lighting the button at power-up"
+# The Pi's firmware turns the button light on about a second after power-up, before Linux
+# starts, so you can see Tomo is starting. Tomo then blinks it until it's ready.
+BOOT_CONFIG="/boot/firmware/config.txt"
+light_pin="$(sudo sed -n 's/^ *light_pin: *\([0-9][0-9]*\).*/\1/p' "$CONFIG_DIR/config.yaml" | head -1)"
+light_pin="${light_pin:-23}"
+if [[ ! -f "$BOOT_CONFIG" ]]; then
+    ok "no $BOOT_CONFIG, skipping"
+elif grep -q "^gpio=${light_pin}=op,dh$" "$BOOT_CONFIG"; then
+    ok "already set (GPIO$light_pin)"
+else
+    sudo sed -i '/^# Tomoshibi: button light on at power-up$/,+1d' "$BOOT_CONFIG"
+    printf '\n[all]\n# Tomoshibi: button light on at power-up\ngpio=%s=op,dh\n' "$light_pin" \
+        | sudo tee -a "$BOOT_CONFIG" >/dev/null
+    REBOOT_NEEDED=1
+    ok "set for GPIO$light_pin (takes effect after a reboot)"
+fi
+
+# ---------------------------------------------------------------------------
 step "Downloading speech models"
 cd /   # the service user can't read the admin's home directory
 sudo -u "$SERVICE_USER" env HF_HOME="$STATE_DIR/.cache/huggingface" HF_HUB_DISABLE_TELEMETRY=1 \
@@ -212,5 +231,5 @@ step "Finished"
 ok "Check on it with:  systemctl status tomoshibi"
 ok "See what it's doing with:  journalctl -u tomoshibi -f"
 if (( REBOOT_NEEDED )); then
-    ok "Please reboot to finish enabling SPI:  sudo reboot"
+    ok "Please reboot to finish setting up:  sudo reboot"
 fi

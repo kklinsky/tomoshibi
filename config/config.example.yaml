@@ -15,7 +15,8 @@ display:
 
 button:
   pin: 22
-  light_pin: 23
+  light_pin: 23                 # also lit at power-up by install.sh (gpio= in the boot config)
+  ready_chime: false            # true: a soft chime when Tomo has started (never in quiet hours)
 
 speech:
   stt_model: whisper-base-en          # name from models.lock
