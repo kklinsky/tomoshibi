@@ -84,6 +84,7 @@ class Conversation:
                                               + (["web_search"] if self.web_search else [])))
         self.history: list[dict] = []
         self.pressed = threading.Event()
+        self.setup = None  # setup mode (the Wi-Fi hotspot), once running
 
     def _lookups(self, conf: dict):
         """Weather and web search, each only if switched on in config (docs/DESIGN.md §8a)."""
@@ -127,6 +128,7 @@ class Conversation:
 
         if self.button:
             self.button.on_press = self.press
+            self.button.on_setup = self.start_setup_mode
             self.light = self.button.light
             self.light(False)  # stops the startup blink
             status("the talk button is ready")
@@ -143,6 +145,11 @@ class Conversation:
         # Enter in this terminal works too, which helps over SSH.
         threading.Thread(target=self._stdin_button, daemon=True).start()
 
+    def start_setup_mode(self) -> None:
+        """The button's setup gesture (docs/DESIGN.md §10b)."""
+        if self.setup:
+            threading.Thread(target=self.setup.start, args=("button",), daemon=True).start()
+
     def _stdin_button(self) -> None:
         for _ in sys.stdin:
             self.press()
@@ -153,6 +160,9 @@ class Conversation:
             self._run_typed()
             return
         self.start_button()
+        from tomoshibi import setup_mode
+
+        self.setup = setup_mode.launch(self.conf, self.face)
         if cfg.get(self.conf, "button.ready_chime", False) and not in_quiet_hours(self.conf):
             self.speaker.play(audio.ready_chime(), 24_000, voice=False)
         status("idle: face relaxed, light off")

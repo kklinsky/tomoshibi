@@ -1,0 +1,17 @@
+// Lets the tomoshibi service manage Wi-Fi through NetworkManager for setup mode
+// (docs/DESIGN.md §10b): scan, add/change/delete connection profiles, connect and
+// disconnect, and run the WPA2 setup hotspot. Nothing else. Installed by scripts/install.sh
+// to /etc/polkit-1/rules.d/.
+polkit.addRule(function (action, subject) {
+    if (subject.user !== "tomoshibi") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    switch (action.id) {
+    case "org.freedesktop.NetworkManager.settings.modify.system":
+    case "org.freedesktop.NetworkManager.network-control":
+    case "org.freedesktop.NetworkManager.wifi.scan":
+    case "org.freedesktop.NetworkManager.wifi.share.protected":
+        return polkit.Result.YES;
+    }
+    return polkit.Result.NOT_HANDLED;
+});

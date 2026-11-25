@@ -15,6 +15,7 @@
   --body: "Zen Kaku Gothic New", "Segoe UI", system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 var(--body);
   padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left)); }
 main { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
@@ -26,8 +27,8 @@ p { margin: 0; }
 .hint { color: var(--muted); font-size: .92rem; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
 label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; }
-input[type=text] { font: inherit; color: var(--ink); background: #17141f; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; width: 100%; }
-input[type=text]:focus-visible, button:focus-visible { outline: 3px solid var(--lamp); outline-offset: 2px; }
+input[type=text], input[type=password] { font: inherit; color: var(--ink); background: #17141f; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; width: 100%; }
+input:focus-visible, button:focus-visible { outline: 3px solid var(--lamp); outline-offset: 2px; }
 .row { display: flex; flex-wrap: wrap; gap: 10px; }
 button { font: 600 1rem var(--body); color: var(--ink); background: #342d46; border: 1px solid #4a4061; border-radius: 10px; padding: 12px 16px; min-height: 48px; cursor: pointer; }
 button.primary { background: var(--lamp); color: var(--lamp-ink); border-color: var(--lamp); }
@@ -47,12 +48,58 @@ li.entry .row { justify-content: flex-end; }
 li.entry button { min-height: 44px; padding: 8px 12px; }
 .tries li { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
 .empty { color: var(--muted); }
+.code { font: 600 1.8rem var(--mark); letter-spacing: .2em; text-align: center; }
+.nets li button { width: 100%; display: flex; justify-content: space-between; gap: 12px; text-align: left; }
+.nets li button .sig { color: var(--muted); font-weight: 500; white-space: nowrap; }
+.nets li button[aria-pressed=true] .sig { color: var(--lamp-ink); }
+.check { flex-direction: row; align-items: center; gap: 10px; font-weight: 400; }
+.check input { width: 22px; height: 22px; }
+.banner { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); }
+.banner.ok { border-color: var(--ok); color: var(--ok); } .banner.bad { border-color: var(--bad); color: var(--bad); }
 </style>
 </head>
 <body>
 <main>
   <header><span class="mark">tomo</span><span>Setup</span></header>
 
+  <section class="panel" id="unlock" aria-labelledby="unlock-h" hidden>
+    <h2 id="unlock-h">Enter the code</h2>
+    <p class="hint">Tomo's screen shows a 6-digit code. Type it here to open the setup page.</p>
+    <label>Code
+      <input type="text" id="code" class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123 456">
+    </label>
+    <div class="row"><button type="button" id="unlock-go" class="primary">Open setup</button></div>
+    <p class="status" id="unlock-status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="panel" id="wifi" aria-labelledby="wifi-h" hidden>
+    <h2 id="wifi-h">Wi-Fi</h2>
+    <p id="wifi-now"></p>
+    <div id="wifi-result" class="banner" hidden></div>
+    <div id="wifi-change" hidden>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <span class="hint">Pick Tomo's home network:</span>
+          <button type="button" id="wifi-scan">Look again</button>
+        </div>
+        <ul class="nets" id="nets"><li class="empty">Loading…</li></ul>
+        <label class="check"><input type="checkbox" id="wifi-other"> It's not in the list (type its name)</label>
+        <label id="ssid-box" hidden>Network name
+          <input type="text" id="ssid" autocomplete="off" autocapitalize="none" spellcheck="false">
+        </label>
+        <label id="pw-box">Password <span class="hint" id="pw-hint"></span>
+          <input type="password" id="wifi-pw" autocomplete="off" autocapitalize="none" spellcheck="false">
+        </label>
+        <label class="check"><input type="checkbox" id="pw-show"> Show the password</label>
+        <p class="hint">Tomo tries the new network for up to 2 minutes. The setup Wi-Fi turns off while it does, so your phone will disconnect. If it can't get online, Tomo goes back to how it was and the setup Wi-Fi comes back.</p>
+        <div class="row"><button type="button" id="wifi-join" class="primary">Connect</button></div>
+        <p class="status" id="wifi-status" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+    <p class="hint" id="wifi-howto" hidden>To change Wi-Fi, start setup mode on Tomo: hold the button for 10 seconds, let go, then press it once more. Tomo's screen then shows what to do.</p>
+  </section>
+
+  <div id="pron" hidden style="display:contents">
   <section class="panel" aria-labelledby="try-h">
     <h2 id="try-h">Try a pronunciation</h2>
     <p class="hint">Hear a name in Tomo's own voice, try different spellings until it sounds right, then save it. The spelling Tomo shows stays the same; only how it's said changes.</p>
@@ -88,6 +135,7 @@ li.entry button { min-height: 44px; padding: 8px 12px; }
     <h2 id="list-h">Saved pronunciations</h2>
     <ul id="list"><li class="empty">Loading…</li></ul>
   </section>
+  </div>
 </main>
 
 <script>
@@ -203,8 +251,95 @@ li.entry button { min-height: 44px; padding: 8px 12px; }
     }));
   }
 
-  syncSentence();
-  load();
+  // --- unlock and Wi-Fi ---------------------------------------------------------------
+  let chosen = null, networks = [];
+  const code = $("code");
+
+  function bars(signal) { return signal >= 70 ? "strong" : signal >= 40 ? "good" : signal >= 20 ? "weak" : "very weak"; }
+  function wifiStatus(text, kind = "") { const el = $("wifi-status"); el.textContent = text; el.className = "status " + kind; }
+
+  function renderNets() {
+    if (!networks.length) { $("nets").innerHTML = '<li class="empty">No networks found. Tap "Look again", or type the name below.</li>'; return; }
+    $("nets").replaceChildren(...networks.map(n => {
+      const li = document.createElement("li");
+      const btn = document.createElement("button"); btn.type = "button";
+      btn.setAttribute("aria-pressed", String(chosen && chosen.ssid === n.ssid && !$("wifi-other").checked));
+      const name = document.createElement("span"); name.textContent = n.ssid + (n.open ? " (no password)" : "");
+      const sig = document.createElement("span"); sig.className = "sig"; sig.textContent = `${bars(n.signal)} · ${n.signal}%`;
+      btn.append(name, sig);
+      btn.addEventListener("click", () => { chosen = n; $("wifi-other").checked = false; $("ssid-box").hidden = true; syncPw(); renderNets(); $("wifi-pw").focus(); });
+      li.append(btn);
+      return li;
+    }));
+  }
+
+  function syncPw() {
+    const open = chosen && chosen.open && !$("wifi-other").checked;
+    $("pw-box").hidden = open;
+    $("pw-hint").textContent = $("wifi-other").checked ? "(leave empty if it has none)" : "";
+  }
+
+  function showWifi(data) {
+    const net = data.setup_mode ? data.before : data.current;
+    const now = $("wifi-now");
+    if (data.trying) now.textContent = `Trying ${data.trying}…`;
+    else if (net) now.textContent = `${data.setup_mode ? "Before setup mode, Tomo was on" : "Tomo is on"} ${net.ssid} (signal ${bars(net.signal)}, ${net.signal}%).`;
+    else now.textContent = data.setup_mode ? "Tomo wasn't connected to Wi-Fi when setup mode started." : "Tomo isn't connected to Wi-Fi right now.";
+    if (data.setup_mode && data.minutes_left) now.textContent += ` Setup mode ends in about ${data.minutes_left} min.`;
+    const r = data.result, box = $("wifi-result");
+    box.hidden = !r;
+    if (r) { box.className = "banner " + (r.ok ? "ok" : "bad"); box.textContent = r.ok ? `Connected to ${r.ssid}.` : `${r.ssid} didn't work: ${r.why} Nothing was changed. Try again.`; }
+    $("wifi-change").hidden = !data.can_change;
+    $("wifi-howto").hidden = data.can_change;
+    if (data.networks) { networks = data.networks; renderNets(); }
+  }
+
+  async function loadWifi() {
+    const res = await fetch("/api/wifi");
+    if (res.ok) showWifi(await res.json());
+  }
+
+  $("wifi-other").addEventListener("change", () => { $("ssid-box").hidden = !$("wifi-other").checked; syncPw(); renderNets(); if ($("wifi-other").checked) $("ssid").focus(); });
+  $("pw-show").addEventListener("change", () => { $("wifi-pw").type = $("pw-show").checked ? "text" : "password"; });
+  $("wifi-scan").addEventListener("click", async () => {
+    wifiStatus("Looking for networks…");
+    const res = await api("/api/wifi/scan", {});
+    const data = await res.json();
+    if (!res.ok) { wifiStatus(data.error, "bad"); return; }
+    showWifi(data);
+    wifiStatus(data.fresh ? "" : "Tomo can't look again while the setup Wi-Fi is on, so this is the list from when setup mode started.");
+  });
+  $("wifi-join").addEventListener("click", async () => {
+    const other = $("wifi-other").checked;
+    const ssid = other ? $("ssid").value.trim() : (chosen ? chosen.ssid : "");
+    if (!ssid) { wifiStatus("Pick a network first.", "bad"); return; }
+    const res = await api("/api/wifi/join", { ssid, password: $("wifi-pw").value, hidden: other });
+    const data = await res.json();
+    if (!res.ok) { wifiStatus(data.error, "bad"); return; }
+    $("wifi-pw").value = "";
+    wifiStatus(`Trying ${ssid}. Your phone will lose the setup Wi-Fi now. Watch Tomo's screen: it says "Connected" if it worked. If not, the setup Wi-Fi comes back in about 2 minutes; join it again and this page will say what went wrong.`, "ok");
+  });
+
+  async function unlock() {
+    const res = await api("/api/unlock", { code: code.value });
+    if (res.ok) { start(); return; }
+    const el = $("unlock-status"); el.textContent = (await res.json()).error; el.className = "status bad";
+    code.select();
+  }
+  $("unlock-go").addEventListener("click", unlock);
+  code.addEventListener("keydown", e => { if (e.key === "Enter") unlock(); });
+
+  async function start() {
+    const res = await fetch("/api/mode");
+    const mode = res.ok ? await res.json() : { unlocked: true, pronunciations: true };
+    $("unlock").hidden = mode.unlocked;
+    if (!mode.unlocked) { code.focus(); return; }
+    $("wifi").hidden = false;
+    loadWifi();
+    if (mode.pronunciations) { $("pron").hidden = false; syncSentence(); load(); }
+  }
+
+  start();
 })();
 </script>
 </body>

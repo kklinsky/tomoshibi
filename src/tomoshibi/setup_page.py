@@ -1,11 +1,16 @@
-"""The setup page (docs/DESIGN.md §10b). First version: only the pronunciation tester.
+"""The setup page (docs/DESIGN.md §10b): the pronunciation tester and Wi-Fi.
 
-    tomoshibi setup-page [--host 0.0.0.0] [--port 8080]
+It runs two ways:
 
-For now it listens on the home network (not yet only on the setup hotspot and Tailscale,
-as the design says). Access needs the one-time link printed at startup: opening it sets a
-cookie, and every other request needs that cookie. The cookie is SameSite=Strict and the
-API only accepts JSON, so other web pages can't use it on your behalf.
+- `tomoshibi setup-page [--host 0.0.0.0] [--port 8080]`, started by hand over SSH. It listens
+  on the home network (not yet only on Tailscale, as the design says). Access needs the
+  one-time link printed at startup. Wi-Fi is shown but can't be changed from here.
+- In setup mode (setup_mode.py), inside the main service, on the setup hotspot only. Access
+  needs the 6-digit code on the device's screen. This is where Wi-Fi is changed. Any other
+  address is redirected to the page, so phones open it as a captive portal.
+
+Either way, getting in sets a cookie that every other request needs. The cookie is
+SameSite=Strict and the API only accepts JSON, so other web pages can't use it on your behalf.
 """
 
 import io
@@ -24,7 +29,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from tomoshibi import audio, models, paths, pronunciation
+from tomoshibi import audio, models, paths, pronunciation, wifi
 from tomoshibi import config as cfg
 from tomoshibi import tts as tts_mod
 
@@ -55,16 +60,22 @@ def wav_bytes(pcm: np.ndarray, rate: int) -> bytes:
 
 
 class SetupApp:
-    def __init__(self, conf: dict, lock_path: Path, data_dir: Path):
+    def __init__(self, conf: dict, lock_path: Path | None, data_dir: Path, setup=None):
+        """With no lock_path there's no voice, so no pronunciation tester (setup mode, which
+        runs beside Tomo's own voice). `setup` is the SetupMode, when in setup mode."""
         self.conf = conf
         self.data_dir = data_dir
+        self.setup = setup
+        self.net = setup.net if setup else wifi.Nmcli()
         self.token = secrets.token_urlsafe(12)
-        self.session = secrets.token_urlsafe(24)
-        specs = models.load_lock(lock_path)
-        name = cfg.get(conf, "speech.tts_model")
-        spec = models.find(specs, name) if name else models.first_of_kind(specs, "tts")
-        self.tts = tts_mod.load(spec, length_scale=float(cfg.get(conf, "speech.tts_speed", 1.1)),
-                                voice=cfg.get(conf, "speech.tts_voice"))
+        self.session = "" if setup else secrets.token_urlsafe(24)  # setup mode has its own sessions
+        self.tts = None
+        if lock_path is not None:
+            specs = models.load_lock(lock_path)
+            name = cfg.get(conf, "speech.tts_model")
+            spec = models.find(specs, name) if name else models.first_of_kind(specs, "tts")
+            self.tts = tts_mod.load(spec, length_scale=float(cfg.get(conf, "speech.tts_speed", 1.1)),
+                                    voice=cfg.get(conf, "speech.tts_voice"))
         self.tts_lock = threading.Lock()
         self.device = cfg.get(conf, "audio.device", audio.DEFAULT_DEVICE)
         self.html = resources.files("tomoshibi").joinpath("setup_page.html").read_text(encoding="utf-8")
@@ -94,7 +105,28 @@ def make_handler(app: SetupApp):
         # --- helpers --------------------------------------------------------------
         def _authed(self) -> bool:
             cookie = SimpleCookie(self.headers.get("Cookie", ""))
-            return COOKIE in cookie and secrets.compare_digest(cookie[COOKIE].value, app.session)
+            if COOKIE not in cookie:
+                return False
+            value = cookie[COOKIE].value
+            setup = self._setup()
+            if setup is not None:
+                return setup.authed(value)
+            return bool(app.session) and secrets.compare_digest(value, app.session)
+
+        def _setup(self):
+            return getattr(app, "setup", None)
+
+        def _wifi(self) -> dict:
+            """What the Wi-Fi section shows."""
+            setup = self._setup()
+            if setup is not None:
+                return {**setup.wifi_status(), "can_change": True}
+            try:
+                current = app.net.current()
+            except (wifi.NmcliError, AttributeError):
+                current = None
+            return {"setup_mode": False, "can_change": False,
+                    "current": current.as_dict() if current else None}
 
         def _send(self, status: int, body: bytes, ctype: str, extra: dict | None = None) -> None:
             self.send_response(status)
@@ -124,6 +156,20 @@ def make_handler(app: SetupApp):
         # --- routes ---------------------------------------------------------------
         def do_GET(self):
             path, _, query = self.path.partition("?")
+            setup = self._setup()
+            if setup is not None:
+                # A phone checking for a captive portal asks some other site: send it here.
+                host = self.headers.get("Host", "").rsplit(":", 1)[0]
+                if host != setup.address:
+                    self._send(HTTPStatus.FOUND, b"", "text/plain", {"Location": setup.url + "/"})
+                    return
+                if path == "/":  # the page itself asks for the code when needed
+                    self._send(HTTPStatus.OK, app.html.encode(), "text/html; charset=utf-8")
+                    return
+            if path == "/api/mode":
+                self._json(HTTPStatus.OK, {"setup_mode": setup is not None, "unlocked": self._authed(),
+                                           "pronunciations": getattr(app, "tts", True) is not None})
+                return
             if path == "/" and query.startswith("t="):
                 if secrets.compare_digest(query[2:], app.token):
                     self._send(HTTPStatus.SEE_OTHER, b"", "text/plain", {
@@ -143,10 +189,22 @@ def make_handler(app: SetupApp):
             elif path == "/api/pronunciations":
                 self._json(HTTPStatus.OK, {"entries": pronunciation.entries(app.data_dir),
                                            "person": _person_name(app.data_dir)})
+            elif path == "/api/wifi":
+                self._json(HTTPStatus.OK, self._wifi())
             else:
                 self._send(HTTPStatus.NOT_FOUND, b"Not found", "text/plain")
 
         def do_POST(self):
+            setup = self._setup()
+            if self.path == "/api/unlock" and setup is not None:
+                data = self._body() or {}
+                session, error = setup.unlock(str(data.get("code", "")))
+                if error:
+                    self._json(HTTPStatus.FORBIDDEN, {"error": error})
+                else:
+                    self._send(HTTPStatus.OK, b'{"unlocked": true}', "application/json", {
+                        "Set-Cookie": f"{COOKIE}={session}; HttpOnly; SameSite=Strict; Path=/"})
+                return
             if not self._authed():
                 self._json(HTTPStatus.UNAUTHORIZED, {"error": "Open the link shown where the setup page was started."})
                 return
@@ -155,6 +213,24 @@ def make_handler(app: SetupApp):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "Expected a JSON request."})
                 return
             client = self.client_address[0]
+            if self.path in ("/api/wifi/scan", "/api/wifi/join") and setup is None:
+                self._json(HTTPStatus.CONFLICT, {"error": "Start setup mode on the device to change Wi-Fi."})
+                return
+            if self.path == "/api/wifi/scan":
+                fresh = setup.rescan()
+                self._json(HTTPStatus.OK, {**self._wifi(), "fresh": fresh})
+                return
+            if self.path == "/api/wifi/join":
+                error = setup.join(str(data.get("ssid", ""))[:64], str(data.get("password", ""))[:64],
+                                   bool(data.get("hidden")), client)
+                if error:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": error})
+                else:
+                    self._json(HTTPStatus.ACCEPTED, {"trying": str(data.get("ssid", "")).strip()})
+                return
+            if getattr(app, "tts", True) is None and self.path.startswith(("/api/say", "/api/pronunciations")):
+                self._json(HTTPStatus.CONFLICT, {"error": "The pronunciation tester isn't available in setup mode."})
+                return
             if self.path == "/api/say":
                 text = str(data.get("text", "")).strip()[:MAX_TEXT]
                 if not text:
@@ -222,6 +298,20 @@ def serve(conf: dict, lock_path: Path, host: str = "0.0.0.0", port: int = 8080) 
         server.serve_forever()
     finally:
         print(f"  [setup page stopped after {time.time() - started:.0f} s]")
+
+
+def serve_setup_mode(setup, conf: dict) -> ThreadingHTTPServer:
+    """The page for setup mode, on the hotspot's address only. Returns the running server."""
+    app = SetupApp(conf, None, paths.data_dir(), setup=setup)
+    setup.log = app.log_change
+    try:
+        server = ThreadingHTTPServer((setup.address, setup.port), make_handler(app))
+    except PermissionError:  # port 80 needs CAP_NET_BIND_SERVICE (deploy/tomoshibi.service)
+        setup.port = 8080
+        server = ThreadingHTTPServer((setup.address, setup.port), make_handler(app))
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
 
 
 def _lan_address() -> str:

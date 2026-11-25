@@ -179,6 +179,7 @@ def main(argv: list[str] | None = None) -> int:
         from tomoshibi.conversation import Conversation
         from tomoshibi.llm import ProviderError
 
+        talk = None
         try:
             talk = Conversation(conf, lock_path, typed=args.type, stt_name=args.stt,
                                 tts_name=args.tts, face=screen, button=button)
@@ -190,6 +191,8 @@ def main(argv: list[str] | None = None) -> int:
         except KeyboardInterrupt:
             pass
         finally:
+            if talk and talk.setup:
+                talk.setup.stop("Tomo is stopping")  # never leave the setup hotspot up
             if button:
                 button.light(False)
             screen.close()

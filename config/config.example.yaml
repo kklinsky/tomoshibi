@@ -60,3 +60,11 @@ updates:
   channel: stable
   check: daily
   auto_install: false
+
+setup:                                # the setup hotspot and Wi-Fi page (docs/DESIGN.md §10b)
+  enabled: true
+  auto_start: true                    # start the hotspot by itself when there's no network...
+  no_network_after: 5m                # ...for this long
+  minutes: 15                         # setup mode turns itself off after this
+  wifi_device: wlan0
+  port: 80                            # 80 lets phones open the page as a captive portal

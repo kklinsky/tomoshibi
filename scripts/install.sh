@@ -67,7 +67,7 @@ sudo -v || die "This installer needs sudo."
 step "Installing system packages"
 sudo apt-get update -qq
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    git curl ca-certificates alsa-utils libportaudio2 libsndfile1 sqlite3 >/dev/null
+    git curl ca-certificates alsa-utils libportaudio2 libsndfile1 sqlite3 dnsmasq-base >/dev/null
 ok "done"
 
 # ---------------------------------------------------------------------------
@@ -201,6 +201,21 @@ else
         | sudo tee -a "$BOOT_CONFIG" >/dev/null
     REBOOT_NEEDED=1
     ok "set for GPIO$light_pin (takes effect after a reboot)"
+fi
+
+# ---------------------------------------------------------------------------
+step "Letting Tomo change Wi-Fi in setup mode"
+# A narrow polkit rule: the service may manage NetworkManager's Wi-Fi connections and run
+# the setup hotspot, nothing more. Plus the hotspot's captive-portal DNS. See docs/DESIGN.md §10b.
+if ! command -v nmcli >/dev/null; then
+    ok "NetworkManager isn't installed, skipping (setup mode needs it)"
+else
+    sudo install -m 644 -o root -g root "$release/deploy/50-tomoshibi-network.rules" \
+        /etc/polkit-1/rules.d/50-tomoshibi-network.rules
+    sudo install -d -m 755 -o root -g root /etc/NetworkManager/dnsmasq-shared.d
+    sudo install -m 644 -o root -g root "$release/deploy/tomoshibi-setup-dnsmasq.conf" \
+        /etc/NetworkManager/dnsmasq-shared.d/tomoshibi-setup.conf
+    ok "done"
 fi
 
 # ---------------------------------------------------------------------------

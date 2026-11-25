@@ -12,6 +12,9 @@ Environment=HOME=/var/lib/tomoshibi
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/local/bin/tomoshibi chat
 StandardInput=null
+# Setup mode serves its page on port 80 of the setup hotspot, so phones open it as a captive
+# portal (docs/DESIGN.md §10b). This lets Tomo use that one low port; it's still not root.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 Restart=always
 RestartSec=5
 # Exit code 2 means setup is wrong (e.g. no API key); restarting won't fix that.

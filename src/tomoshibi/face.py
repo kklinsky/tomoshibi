@@ -94,6 +94,38 @@ def boot_frame() -> Image.Image:
     return frame
 
 
+CARD_STYLE = {  # kind: (size, weight, color, space above)
+    "title": (26, 600, "#f2b45a", 0), "label": (15, 500, "#a99fb6", 8), "value": (21, 600, "#f1e7d6", 0),
+    "big": (30, 600, "#f1e7d6", 0), "warn": (16, 600, "#e98a80", 10), "note": (16, 500, "#cbbfd8", 10),
+}
+
+
+def info_card(rows: list[tuple[str, str]], background: tuple[int, int, int] | None = None) -> Image.Image:
+    """A screen of text in place of the face, e.g. setup mode's hotspot and code. Each row is
+    (text, kind) with kind from CARD_STYLE; long text wraps, and the whole is centered."""
+    frame = Image.new("RGB", (WIDTH, HEIGHT), background or BACKGROUND)
+    draw = ImageDraw.Draw(frame)
+    lines = []  # (text, font, color, space above)
+    for text, kind in rows:
+        size, weight, color, gap = CARD_STYLE.get(kind, CARD_STYLE["note"])
+        f = font(size, weight)
+        words, line = text.split(), ""
+        for word in words:
+            trial = f"{line} {word}".strip()
+            if line and draw.textlength(trial, font=f) > WIDTH - 20:
+                lines.append((line, f, color, gap))
+                line, gap = word, 0
+            else:
+                line = trial
+        lines.append((line, f, color, gap))
+    heights = [gap + f.size + 4 for _, f, _, gap in lines]
+    y = max(4, (HEIGHT - sum(heights)) / 2)
+    for (text, f, color, gap), h in zip(lines, heights, strict=True):
+        draw.text((WIDTH / 2, y + gap), text, fill=color, font=f, anchor="mt")
+        y += h
+    return frame
+
+
 def thinking_dots(count: int) -> Image.Image:
     """Plain dots in lamplight, for a face pack that doesn't draw its own."""
     scale = 4  # drawn large and shrunk, so the edges are smooth
@@ -362,6 +394,7 @@ class FaceScreen:
     def __init__(self, face: Face, screen):
         self.face, self.screen = face, screen
         self.frames, self.sent, self.busy = 0, 0, 0.0
+        self.card: np.ndarray | None = None  # shown instead of the face while set
         self.origin = time.monotonic()
         self.stopping = threading.Event()
         self.thread = threading.Thread(target=self._run, daemon=True)
@@ -375,7 +408,8 @@ class FaceScreen:
     def _run(self) -> None:
         while not self.stopping.is_set():
             started = time.monotonic()
-            rgb = np.asarray(self.face.frame(self.now()))
+            card = self.card
+            rgb = card if card is not None else np.asarray(self.face.frame(self.now()))
             self.sent += bool(self.screen.show(rgb))
             if self.frames == 0:
                 self.screen.backlight(True)  # only once there's a picture to light
@@ -433,6 +467,11 @@ class FaceDisplay:
     def voice(self, level: float) -> None:
         if self.face:
             self.face.voice_level = level
+
+    def card(self, image: Image.Image | None) -> None:
+        """Show a card (setup mode's details) instead of the face, or None for the face again."""
+        if self.runner:
+            self.runner.card = None if image is None else np.asarray(image.convert("RGB"))
 
     def close(self) -> None:
         if self.runner:
