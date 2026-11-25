@@ -37,6 +37,12 @@ SORRY_OFFLINE = "I'm sorry, I can't reach the internet right now. Please try me 
 SORRY_SETUP = "I'm sorry, something's wrong with my setup. Please ask the family to take a look."
 
 
+# Added to a turn that never paused, which usually means a TV or radio is on.
+TV_NOTE = ("They didn't pause for {seconds} seconds, so a TV or radio was probably on and "
+           "what you heard may be mixed with it. Answer only what seems meant for you, "
+           "briefly; if nothing does, ask gently whether they were talking to you.")
+
+
 def status(text: str) -> None:
     print(f"  [{text}]", flush=True)
 
@@ -54,6 +60,8 @@ class Conversation:
         self.end_silence = cfg.seconds(cfg.get(conf, "conversation.end_of_speech_silence"), 1.5)
         self.follow_up = cfg.seconds(cfg.get(conf, "conversation.follow_up_window"), 10)
         self.first_wait = cfg.seconds(cfg.get(conf, "conversation.first_listen_window"), 8)
+        self.longest_turn = cfg.seconds(cfg.get(conf, "conversation.longest_turn"), 20)
+        self.heard_full = False  # the last turn never paused: a TV or radio was probably on
 
         tts_spec = models.find(specs, tts_name or cfg.get(conf, "speech.tts_model")) \
             if (tts_name or cfg.get(conf, "speech.tts_model")) else models.first_of_kind(specs, "tts")
@@ -210,13 +218,21 @@ class Conversation:
             if self.setup_on():
                 status("setup mode is on: ending the conversation")
                 return
-            text, first_text = (first_text or self.listen(wait)), ""
+            if first_text:
+                text, first_text, self.heard_full = first_text, "", False
+            else:
+                text = self.listen(wait)
             if self.setup_on():  # started while listening: what was heard is dropped
                 status("setup mode is on: ending the conversation")
                 return
             if not text:
                 status("no reply: settling back to idle")
                 return
+            if self.heard_full:
+                if wait == self.follow_up:  # nobody pressed the button for this one
+                    status("follow-up never paused, so it's probably the TV: settling back to idle")
+                    return
+                note = " ".join(filter(None, [note, TV_NOTE.format(seconds=round(self.longest_turn))]))
             interrupted = self.respond(text, note)
             note = ""
             if GOODBYE.search(text) and not interrupted:
@@ -243,6 +259,9 @@ class Conversation:
         self.speaker.finish()
         self.speaker.wait()
         reply = self.listen(self.reminder_listen)
+        if reply and self.heard_full and intents.reminder_reply(reply)[0] not in ("ack", "snooze"):
+            status("reminder reply never paused, so it's probably the TV: counting it as no reply")
+            reply = ""
         if not reply:
             for r in due:
                 if self.events.record(r, "attempted", now) == "missed":
@@ -289,7 +308,9 @@ class Conversation:
         self.face.set_mode("listening")
         self.pressed.clear()
         self.vad.reset()
-        ep = Endpointer(end_silence=self.end_silence, wait_for_speech=wait)
+        ep = Endpointer(end_silence=self.end_silence, wait_for_speech=wait,
+                        max_utterance=self.longest_turn)
+        self.heard_full = False
         # A reminder's reply is still heard in setup mode (it's matched on the device), but
         # setup mode starting mid-turn ends the turn.
         setup_was_on = self.setup_on()
@@ -310,6 +331,10 @@ class Conversation:
                         self.pressed.clear()
                         break
                 elif state in ("done", "timeout"):
+                    break
+                elif state == "full":
+                    self.heard_full = True
+                    status(f"no pause in {self.longest_turn:.0f} s: stopped listening")
                     break
                 if not setup_was_on and self.setup_on():
                     frames = []

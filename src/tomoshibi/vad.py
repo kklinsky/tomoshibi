@@ -39,25 +39,28 @@ class Endpointer:
     Speech starts after `start_frames` consecutive speechy frames. It ends after
     `end_silence` seconds without speech; the silence window is long on purpose, since
     older speakers often pause mid-sentence. `wait_for_speech` limits how long to wait
-    for anything at all.
+    for anything at all. A turn that never pauses (usually a TV or radio) is cut off after
+    `max_utterance` seconds of speech, and ends "full" instead of "done".
     """
 
     FRAME_SECONDS = FRAME / MIC_RATE
 
     def __init__(self, end_silence: float = 1.5, wait_for_speech: float = 8.0,
-                 max_utterance: float = 30.0, threshold: float = 0.5, start_frames: int = 3):
+                 max_utterance: float = 20.0, threshold: float = 0.5, start_frames: int = 3):
         self.end_frames = int(end_silence / self.FRAME_SECONDS)
         self.wait_frames = int(wait_for_speech / self.FRAME_SECONDS)
         self.max_frames = int(max_utterance / self.FRAME_SECONDS)
         self.threshold = threshold
         self.start_frames = start_frames
         self.frames = 0
+        self.spoken = 0  # frames since speech started
         self.speech_run = 0
         self.silence_run = 0
         self.started = False
 
     def update(self, prob: float) -> str:
-        """Feed one frame's probability. Returns "waiting", "speaking", "done" or "timeout"."""
+        """Feed one frame's probability. Returns "waiting", "speaking", "done", "full" or
+        "timeout"."""
         self.frames += 1
         speechy = prob >= self.threshold
         if not self.started:
@@ -67,7 +70,8 @@ class Endpointer:
                 self.silence_run = 0
                 return "speaking"
             return "timeout" if self.frames >= self.wait_frames else "waiting"
+        self.spoken += 1
         self.silence_run = 0 if speechy else self.silence_run + 1
-        if self.silence_run >= self.end_frames or self.frames >= self.max_frames:
+        if self.silence_run >= self.end_frames:
             return "done"
-        return "speaking"
+        return "full" if self.spoken >= self.max_frames else "speaking"

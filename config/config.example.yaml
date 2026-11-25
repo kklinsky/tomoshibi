@@ -28,6 +28,7 @@ conversation:
   first_listen_window: 8s             # after a button press, how long to wait for speech
   follow_up_window: 10s
   end_of_speech_silence: 1.5s
+  longest_turn: 20s                   # stop listening if there's no pause (a TV left on)
 
 reminders:
   tune: station                       # station (built-in) | chime | a WAV file in the data folder

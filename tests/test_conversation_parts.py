@@ -33,6 +33,13 @@ def test_endpointer_starts_then_ends_after_silence():
     assert states[-1] == "done"
 
 
+def test_endpointer_stops_a_turn_that_never_pauses():
+    ep = Endpointer(end_silence=1.5, wait_for_speech=0.32, max_utterance=0.64)  # 20 frames
+    states = [ep.update(0.0) for _ in range(5)] + [ep.update(0.9) for _ in range(25)]
+    assert "timeout" not in states  # the wait for speech doesn't cut it short
+    assert states.index("full") == 5 + 3 + 19  # 3 frames to start, then the 20th of speech
+
+
 def test_endpointer_times_out_without_speech():
     ep = Endpointer(wait_for_speech=0.32)
     assert [ep.update(0.0) for _ in range(10)][-1] == "timeout"
