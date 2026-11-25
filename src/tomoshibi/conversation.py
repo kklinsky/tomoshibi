@@ -85,6 +85,7 @@ class Conversation:
         self.history: list[dict] = []
         self.pressed = threading.Event()
         self.setup = None  # setup mode (the Wi-Fi hotspot), once running
+        self.setup_starting = False  # the gesture was done; setup mode is still coming up
 
     def _lookups(self, conf: dict):
         """Weather and web search, each only if switched on in config (docs/DESIGN.md §8a)."""
@@ -148,7 +149,19 @@ class Conversation:
     def start_setup_mode(self) -> None:
         """The button's setup gesture (docs/DESIGN.md §10b)."""
         if self.setup:
-            threading.Thread(target=self.setup.start, args=("button",), daemon=True).start()
+            self.setup_starting = True  # stop listening now, not when the hotspot is up
+            threading.Thread(target=self._start_setup, daemon=True).start()
+
+    def _start_setup(self) -> None:
+        try:
+            self.setup.start("button")
+        finally:
+            self.setup_starting = False
+
+    def setup_on(self) -> bool:
+        """Setup mode is on or starting. The hotspot replaces the home Wi-Fi, so Tomo doesn't
+        listen or answer then: it would only hear the TV and say it can't reach the internet."""
+        return self.setup_starting or bool(self.setup and self.setup.active)
 
     def _stdin_button(self) -> None:
         for _ in sys.stdin:
@@ -170,6 +183,9 @@ class Conversation:
             self.face.rest(in_quiet_hours(self.conf))
             if self.pressed.wait(timeout=10):
                 self.pressed.clear()
+                if self.setup_on():
+                    status("setup mode is on: not listening until it ends")
+                    continue
                 self.session()
                 status("idle: face relaxed, light off")
                 self.face.rest(in_quiet_hours(self.conf))
@@ -191,7 +207,13 @@ class Conversation:
             self.speaker.wait()
         wait = self.first_wait
         while True:
+            if self.setup_on():
+                status("setup mode is on: ending the conversation")
+                return
             text, first_text = (first_text or self.listen(wait)), ""
+            if self.setup_on():  # started while listening: what was heard is dropped
+                status("setup mode is on: ending the conversation")
+                return
             if not text:
                 status("no reply: settling back to idle")
                 return
@@ -268,6 +290,9 @@ class Conversation:
         self.pressed.clear()
         self.vad.reset()
         ep = Endpointer(end_silence=self.end_silence, wait_for_speech=wait)
+        # A reminder's reply is still heard in setup mode (it's matched on the device), but
+        # setup mode starting mid-turn ends the turn.
+        setup_was_on = self.setup_on()
         frames: list[np.ndarray] = []
         recent: list[np.ndarray] = []
         self.light(True)
@@ -285,6 +310,9 @@ class Conversation:
                         self.pressed.clear()
                         break
                 elif state in ("done", "timeout"):
+                    break
+                if not setup_was_on and self.setup_on():
+                    frames = []
                     break
         self.light(False)
         if not frames:
