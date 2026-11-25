@@ -12,7 +12,7 @@ def run_face(args) -> int:
 
     from tomoshibi import config, face
 
-    the_face = face.Face(face.load_parts())
+    the_face = face.Face(face.load_parts(), background=face.background_color())
     if args.sheet:
         face.preview_sheet(the_face).save(args.sheet)
         print(f"Saved {args.sheet}")

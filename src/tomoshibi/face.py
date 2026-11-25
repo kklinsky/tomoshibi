@@ -6,6 +6,7 @@ right here. Parts that haven't been drawn yet (thinking dots, for now) are simpl
 
 import math
 import random
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -14,14 +15,14 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageChops, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
 
 from tomoshibi import paths
 from tomoshibi.display import HEIGHT, WIDTH
 
 FACE_H = 240  # a square face area, with the day and time strip below it
 STRIP_H = HEIGHT - FACE_H
-BACKGROUND = (0x1E, 0x1B, 0x2E)
+BACKGROUND = (0x1E, 0x1B, 0x2E)  # unless the face pack's colors.txt gives its own
 FPS = 20
 
 MODES = ("idle", "listening", "thinking", "speaking", "sleeping")
@@ -85,9 +86,29 @@ def font(size: int, weight: int) -> ImageFont.FreeTypeFont:
     return loaded
 
 
-def boot_frame() -> Image.Image:
+def face_folder() -> Path:
+    return paths.assets_dir() / "faces" / "tomoshibi"
+
+
+def background_color(folder: Path | None = None) -> tuple[int, int, int]:
+    """The background from the face pack's colors.txt, read the way the previewer reads it:
+    the hex code on a line mentioning "background", or else the first hex code."""
+    path = (folder or face_folder()) / "colors.txt"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return BACKGROUND
+    found = (re.search(r"background[^#\n]*?#([0-9a-f]{6})\b", text, re.IGNORECASE)
+             or re.search(r"#([0-9a-f]{6})\b", text, re.IGNORECASE))
+    if not found:
+        return BACKGROUND
+    code = found.group(1)
+    return int(code[0:2], 16), int(code[2:4], 16), int(code[4:6], 16)
+
+
+def boot_frame(background: tuple[int, int, int] | None = None) -> Image.Image:
     """The startup screen: the wordmark in lamplight on night (docs/brand.md)."""
-    frame = Image.new("RGB", (WIDTH, HEIGHT), BACKGROUND)
+    frame = Image.new("RGB", (WIDTH, HEIGHT), background or background_color())
     draw = ImageDraw.Draw(frame)
     draw.text((WIDTH / 2, HEIGHT / 2 - 8), "tomo", fill="#f2b45a", font=font(72, 600), anchor="mm")
     draw.text((WIDTH / 2, HEIGHT / 2 + 50), "Starting up…", fill="#a99fb6", font=font(18, 500), anchor="mm")
@@ -103,7 +124,7 @@ CARD_STYLE = {  # kind: (size, weight, color, space above)
 def info_card(rows: list[tuple[str, str]], background: tuple[int, int, int] | None = None) -> Image.Image:
     """A screen of text in place of the face, e.g. setup mode's hotspot and code. Each row is
     (text, kind) with kind from CARD_STYLE; long text wraps, and the whole is centered."""
-    frame = Image.new("RGB", (WIDTH, HEIGHT), background or BACKGROUND)
+    frame = Image.new("RGB", (WIDTH, HEIGHT), background or background_color())
     draw = ImageDraw.Draw(frame)
     lines = []  # (text, font, color, space above)
     for text, kind in rows:
@@ -137,7 +158,7 @@ def thinking_dots(count: int) -> Image.Image:
 
 
 def load_parts(folder: Path | None = None) -> dict[str, Image.Image]:
-    folder = folder or paths.assets_dir() / "faces" / "tomoshibi"
+    folder = folder or face_folder()
     parts = {f.stem: Image.open(f).convert("RGBA") for f in sorted(folder.glob("*.png"))}
     if "eyes_open" not in parts:
         raise FileNotFoundError(f"no face parts found in {folder}")
@@ -149,8 +170,11 @@ def load_parts(folder: Path | None = None) -> dict[str, Image.Image]:
 class Face:
     """Works out the pose for each moment and draws it. Times are in seconds."""
 
-    def __init__(self, parts: dict[str, Image.Image], rng: random.Random | None = None):
+    def __init__(self, parts: dict[str, Image.Image], rng: random.Random | None = None,
+                 background: tuple[int, int, int] = BACKGROUND):
         self.parts, self.rng = parts, rng or random.Random()
+        self.background = background
+        self.canvas, self.image_under_strip = still_background(background, parts.get("background"))
         self.mode, self.expression = "idle", "none"
         self.transition: tuple[str, float] | None = None
         self.after = "idle"  # the mode to land in when the transition ends
@@ -370,7 +394,11 @@ class Face:
     def _strip(self, now: datetime) -> Image.Image:
         lines = strip_lines(now)
         if lines != self.strip_key:
-            strip = Image.new("RGB", (WIDTH, STRIP_H), tuple(int(c + (255 - c) * 0.06) for c in BACKGROUND))
+            if self.image_under_strip:  # a full-screen background shows behind the words too
+                strip = self.canvas.crop((0, FACE_H, WIDTH, HEIGHT))
+            else:
+                strip = Image.new("RGB", (WIDTH, STRIP_H),
+                                  tuple(int(c + (255 - c) * 0.06) for c in self.background))
             draw = ImageDraw.Draw(strip)
             draw.text((WIDTH / 2, 27), lines[0], fill="#f1e7d6", font=self.fonts[0], anchor="mm")
             draw.text((WIDTH / 2, 56), lines[1], fill="#cbbfd8", font=self.fonts[1], anchor="mm")
@@ -380,12 +408,28 @@ class Face:
     def frame(self, now: float, clock: datetime | None = None) -> Image.Image:
         p = self.pose(now)
         layer = self._layer(p)
-        frame = Image.new("RGB", (WIDTH, HEIGHT), BACKGROUND)
+        frame = self.canvas.copy()
         frame.paste(layer, (0, round(p.dy)), layer)
         frame.paste(self._strip(clock or datetime.now()), (0, FACE_H))
         if p.dim:
             frame = Image.blend(frame, Image.new("RGB", frame.size, (0, 0, 0)), p.dim)
         return frame
+
+
+def still_background(color: tuple[int, int, int],
+                     image: Image.Image | None) -> tuple[Image.Image, bool]:
+    """The screen behind the face, which never moves: the color, with background.png on top.
+    The image is 240 x 240 (the face area) or 240 x 320 (the whole screen); other sizes are
+    scaled and cropped to whichever is closer. Returns it and whether it covers the strip."""
+    canvas = Image.new("RGB", (WIDTH, HEIGHT), color)
+    if image is None:
+        return canvas, False
+    tall = image.height / image.width > (FACE_H + HEIGHT) / 2 / WIDTH
+    size = (WIDTH, HEIGHT if tall else FACE_H)
+    if image.size != size:
+        image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
+    canvas.paste(image, (0, 0), image)
+    return canvas, tall
 
 
 class FaceScreen:
@@ -441,12 +485,13 @@ class FaceDisplay:
                                   reset_pin=int(config.get(conf, "display.reset_pin", 27)),
                                   backlight_pin=int(config.get(conf, "display.backlight_pin", 18)))
         self.screen = display.ST7789(self.bus)
-        self.screen.show(np.asarray(boot_frame()))
+        self.background = background_color()
+        self.screen.show(np.asarray(boot_frame(self.background)))
         self.screen.backlight(True)
         self.runner, self.face = None, None
 
     def ready(self) -> None:
-        self.face = Face(load_parts())
+        self.face = Face(load_parts(), background=self.background)
         self.face.mode = "sleeping"
         self.runner = FaceScreen(self.face, self.screen)
         self.face.play("wake", self.runner.now())

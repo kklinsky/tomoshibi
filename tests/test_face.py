@@ -14,6 +14,31 @@ from tomoshibi.face import Face, load_parts, mouth_for, strip_lines
 ASSETS = Path(__file__).parent.parent / "assets"
 
 
+def test_background_color_comes_from_colors_txt(tmp_path):
+    assert face.background_color(tmp_path) == face.BACKGROUND  # no file
+    (tmp_path / "colors.txt").write_text("Eyes: #FFF0D0\nBackground: #102030\n", encoding="utf-8")
+    assert face.background_color(tmp_path) == (0x10, 0x20, 0x30)
+    (tmp_path / "colors.txt").write_text("#0a0b0c night\n", encoding="utf-8")
+    assert face.background_color(tmp_path) == (0x0A, 0x0B, 0x0C)
+    (tmp_path / "colors.txt").write_text("dark plum\n", encoding="utf-8")
+    assert face.background_color(tmp_path) == face.BACKGROUND
+
+
+def test_background_image_stays_still_behind_the_face(monkeypatch):
+    monkeypatch.setenv("TOMOSHIBI_ASSETS", str(ASSETS))
+    parts = load_parts(ASSETS / "faces" / "tomoshibi")
+    square = Image.new("RGBA", (240, 240), (200, 0, 0, 255))
+    still = Face({**parts, "background": square}, rng=random.Random(1), background=(0, 0, 40))
+    corner = still.frame(0.0).getpixel((0, 0))
+    assert corner == (200, 0, 0)
+    assert still.frame(5.0).getpixel((0, 0)) == corner
+    assert still.frame(6.0).getpixel((0, 300))[2] > 40  # strip: a tint of the color, not the image
+
+    tall = Image.new("RGBA", (480, 640), (0, 150, 0, 255))
+    whole = Face({**parts, "background": tall}, rng=random.Random(1))
+    assert whole.frame(0.0).getpixel((1, 318)) == (0, 150, 0)  # covers the strip, scaled down
+
+
 @pytest.fixture
 def the_face(monkeypatch):
     monkeypatch.setenv("TOMOSHIBI_ASSETS", str(ASSETS))

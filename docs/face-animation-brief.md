@@ -46,8 +46,22 @@ Because the screen is tiny and viewed from a distance:
 - Background: very dark warm color (deep navy, charcoal or dark plum), not pure black.
 - Face/eyes: warm light colors (cream, soft amber, warm white).
 - Avoid: harsh pure red (reads as alarm), flashing, high-contrast strobing patterns.
-- The software draws the background and the bottom strip, so please tell us your exact
-  background color (hex code, e.g. `#1E1B2E`) so they match.
+- The software fills the background and the bottom strip with your background color. Put it
+  in `colors.txt` as a hex code, e.g. `background: #1E1B2E`. Tomo and the previewer both read
+  it from there. Without one, Tomo uses `#1E1B2E`.
+
+### A background picture (optional)
+For more than a plain color, add a still picture as `background.png`. It sits behind the face
+and **never moves**, while the face bobs and tilts in front of it.
+- **240 × 240** fills the face area, and the strip keeps your background color.
+- **240 × 320** fills the whole screen, and the day and time are written over its bottom
+  80 pixels. Keep that part plain and dark so the words stay readable.
+- Other sizes are scaled and cropped to whichever of the two is closer.
+- Keep it **dark, soft and low in detail**, especially behind the eyes and mouth, so the face
+  stands out. It's on screen all day, so avoid bright areas: an IPS screen that shows the
+  same picture for a long time can keep a faint ghost of it.
+- Don't paint the background into `face_base.png`: that layer moves with the face, so its
+  edges would show as it moves.
 
 ## 3. How to draw it: parts, not frames
 
@@ -161,6 +175,7 @@ So they're just "how open" the mouth is, plus one round shape:
 | File | Description |
 |---|---|
 | `face_base.png` | Anything that never changes: head shape, outline, cheeks, lantern frame, etc. Can be empty if the face is just eyes and mouth floating on the background |
+| `background.png` | Optional still picture behind the face, 240 × 240 or 240 × 320 (see "A background picture" above). Unlike every other part, it isn't transparent |
 
 ### Small face (corner icon)
 When the screen shows a reminder or a photo, a **small version of the face** sits in the corner
